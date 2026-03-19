@@ -1,0 +1,5 @@
+# PyBackup — Runtime dependencies
+# Install: pip install -r requirements.txt
+
+click>=8.1.0
+PyYAML>=6.0

@@ -1,51 +1,71 @@
+"""
+PostgreSQL Backup Engine using ``pg_dump``.
+
+Supported dump formats:
+- ``custom``    → pg_restore-compatible binary (default, recommended)
+- ``directory`` → parallel-capable directory format
+- ``plain``     → human-readable SQL
+"""
+
+from __future__ import annotations
+
+import logging
+import os
 import subprocess
-import datetime
 from pathlib import Path
+from typing import Any
 
 from pybackup.engine.base import BaseBackupEngine
-from pybackup.utils.logger import setup_logging
 from pybackup.utils.exceptions import BackupError
+from pybackup.utils.security import get_secret
+
+logger = logging.getLogger(__name__)
+
+_FORMAT_EXT = {"custom": "dump", "directory": "dir", "plain": "sql"}
 
 
 class PostgresBackupEngine(BaseBackupEngine):
-    """
-    PostgreSQL Backup Engine
-    Uses native pg_dump utility
-    """
+    """Backup engine wrapping the ``pg_dump`` CLI tool."""
 
-    def __init__(self, config: dict):
-        super().__init__(config)
-        self.logger = setup_logging("postgres-backup")
+    def __init__(
+        self,
+        job_name: str,
+        job_config: dict[str, Any],
+        global_config: dict[str, Any],
+    ) -> None:
+        super().__init__(job_name, job_config, global_config)
 
-        pg_cfg = config.get("postgresql", {})
-
-        self.host = pg_cfg.get("host", "localhost")
-        self.port = pg_cfg.get("port", 5432)
-        self.database = pg_cfg.get("database")
-        self.username = pg_cfg.get("username")
-        self.password = pg_cfg.get("password")   # ENV already expanded
-        self.output_dir = pg_cfg.get("output", "/var/backups/postgres")
-        self.format = pg_cfg.get("format", "custom")  # plain | custom | directory
-        self.compress = pg_cfg.get("compress", True)
+        self.host: str = job_config.get("host", "localhost")
+        self.port: int = int(job_config.get("port", 5432))
+        self.database: str = job_config.get("database", "")
+        self.username: str = job_config.get("username", "")
+        self.password: str | None = get_secret(
+            job_config.get("password"), name="postgresql.password"
+        )
+        self.dump_format: str = job_config.get("format", "custom")
 
         if not self.database:
-            raise BackupError("PostgreSQL database name is required")
-
+            raise BackupError(
+                "postgresql.database is required",
+                details={"job": self.job_name},
+            )
         if not self.username:
-            raise BackupError("PostgreSQL username is required")
+            raise BackupError(
+                "postgresql.username is required",
+                details={"job": self.job_name},
+            )
+        if self.dump_format not in _FORMAT_EXT:
+            raise BackupError(
+                f"Unsupported pg_dump format: {self.dump_format!r}",
+                details={"job": self.job_name, "allowed": list(_FORMAT_EXT)},
+            )
 
-    def run(self):
-        """
-        Execute PostgreSQL backup
-        """
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_dir = Path(self.output_dir)
-        backup_dir.mkdir(parents=True, exist_ok=True)
+    def run(self) -> Path:
+        output_dir = self.get_output_dir()
+        ext = _FORMAT_EXT[self.dump_format]
+        backup_file = output_dir / f"{self.database}_{self.timestamp}.{ext}"
 
-        ext = self._get_extension()
-        backup_file = backup_dir / f"{self.database}_{timestamp}.{ext}"
-
-        dump_cmd = [
+        cmd = [
             "pg_dump",
             "-h", self.host,
             "-p", str(self.port),
@@ -53,74 +73,67 @@ class PostgresBackupEngine(BaseBackupEngine):
             "-d", self.database,
         ]
 
-        # Backup format
-        if self.format == "custom":
-            dump_cmd.extend(["-F", "c"])
-        elif self.format == "directory":
-            dump_cmd.extend(["-F", "d"])
-        else:
-            dump_cmd.extend(["-F", "p"])
+        format_flag = {"custom": "c", "directory": "d", "plain": "p"}[self.dump_format]
+        cmd += ["-F", format_flag]
 
-        self.logger.info(f"Starting PostgreSQL backup → {backup_file}")
+        logger.info(
+            "[%s] Starting pg_dump → %s (format=%s)",
+            self.job_name, backup_file, self.dump_format,
+        )
+
+        env = self._build_env()
 
         try:
-            env = self._build_env()
-
-            if self.format == "directory":
+            if self.dump_format == "directory":
                 subprocess.run(
-                    dump_cmd + ["-f", str(backup_file)],
+                    cmd + ["-f", str(backup_file)],
                     env=env,
                     stderr=subprocess.PIPE,
                     text=True,
                     check=True,
+                    timeout=3600,
                 )
             else:
-                with backup_file.open("wb") as out:
+                with backup_file.open("wb") as fh:
                     subprocess.run(
-                        dump_cmd,
+                        cmd,
                         env=env,
-                        stdout=out,
+                        stdout=fh,
                         stderr=subprocess.PIPE,
                         check=True,
+                        timeout=3600,
                     )
 
-            if self.compress and self.format == "plain":
-                self._compress_backup(backup_file)
+            if self.compress and self.dump_format == "plain":
+                backup_file = self._compress(backup_file)
 
-            self.logger.info("PostgreSQL backup completed successfully")
-
+        except subprocess.TimeoutExpired as exc:
+            raise BackupError("pg_dump timed out", details={"job": self.job_name}) from exc
         except subprocess.CalledProcessError as exc:
-            self.logger.error(exc.stderr)
             raise BackupError(
-                "PostgreSQL backup failed",
-                details=exc.stderr,
-            )
+                "pg_dump failed",
+                details={"job": self.job_name, "returncode": exc.returncode, "stderr": exc.stderr},
+            ) from exc
+        except FileNotFoundError as exc:
+            raise BackupError(
+                "pg_dump not found — is PostgreSQL client installed?",
+                details={"job": self.job_name},
+            ) from exc
 
-    def _build_env(self):
-        """
-        Build environment variables securely
-        """
-        env = dict(**dict())
+        logger.info("[%s] PostgreSQL backup completed: %s", self.job_name, backup_file)
+        return backup_file
+
+    # ─── Helpers ───────────────────────────────────────────────────
+
+    def _build_env(self) -> dict[str, str]:
+        """Build subprocess environment, injecting PGPASSWORD if needed."""
+        env = os.environ.copy()
         if self.password:
             env["PGPASSWORD"] = self.password
         return env
 
-    def _get_extension(self) -> str:
-        """
-        Decide backup file extension
-        """
-        if self.format == "custom":
-            return "dump"
-        if self.format == "directory":
-            return "dir"
-        return "sql"
-
-    def _compress_backup(self, file_path: Path):
-        """
-        Compress SQL dump using gzip
-        """
-        self.logger.info(f"Compressing backup → {file_path}.gz")
-
+    def _compress(self, file_path: Path) -> Path:
+        logger.info("[%s] Compressing %s", self.job_name, file_path)
         try:
             subprocess.run(
                 ["gzip", "-f", str(file_path)],
@@ -130,6 +143,7 @@ class PostgresBackupEngine(BaseBackupEngine):
             )
         except subprocess.CalledProcessError as exc:
             raise BackupError(
-                "PostgreSQL backup compression failed",
-                details=exc.stderr,
-            )
+                "gzip compression failed",
+                details={"job": self.job_name, "stderr": exc.stderr},
+            ) from exc
+        return file_path.with_suffix(file_path.suffix + ".gz")

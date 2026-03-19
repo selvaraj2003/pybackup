@@ -1,0 +1,86 @@
+# pybackup.yaml — example configuration
+# Run: pybackup run -c pybackup.yaml
+# Dashboard: pybackup serve
+
+version: 1
+
+# ── Global settings ────────────────────────────────────────────────
+global:
+  backup_root:    /backups
+  retention_days: 7
+  compress:       true
+  log_level:      INFO
+  # log_file:    /var/log/pybackup/pybackup.log  # optional file log
+  # db_path:     /var/lib/pybackup/pybackup.db   # SQLite path
+
+# ── File backups ───────────────────────────────────────────────────
+files:
+  enabled: true
+  jobs:
+    - name: app-configs
+      source: /etc/myapp
+      output: /backups/files/app-configs
+      compress: true
+      exclude:
+        - "*.log"
+        - "*.tmp"
+        - "__pycache__"
+
+    - name: nginx-configs
+      source: /etc/nginx
+      output: /backups/files/nginx
+      compress: false
+
+# ── PostgreSQL ─────────────────────────────────────────────────────
+postgresql:
+  enabled: false
+  jobs:
+    - name: prod-postgres
+      host:     localhost
+      port:     5432
+      database: myapp_production
+      username: backup_user
+      password: ${PGPASSWORD}     # resolved from environment
+      format:   custom            # custom | plain | directory
+      compress: true
+      output:   /backups/postgres/prod
+
+# ── MySQL ──────────────────────────────────────────────────────────
+mysql:
+  enabled: false
+  jobs:
+    - name: prod-mysql
+      host:               localhost
+      port:               3306
+      database:           myapp
+      username:           backup_user
+      password:           ${MYSQL_PASSWORD}
+      single_transaction: true
+      compress:           true
+      output:             /backups/mysql/prod
+
+# ── MongoDB ────────────────────────────────────────────────────────
+mongodb:
+  enabled: false
+  jobs:
+    - name: prod-mongo
+      host:     localhost
+      port:     27017
+      database: myapp       # omit to dump all databases
+      username: backup_user
+      password: ${MONGO_PASSWORD}
+      auth_db:  admin
+      output:   /backups/mongo/prod
+
+# ── MS SQL Server ──────────────────────────────────────────────────
+mssql:
+  enabled: false
+  jobs:
+    - name: prod-mssql
+      host:     localhost
+      port:     1433
+      database: MyAppDB
+      username: sa
+      password: ${MSSQL_SA_PASSWORD}
+      encrypt:  false
+      output:   /backups/mssql/prod

@@ -2,18 +2,39 @@
 Custom exception hierarchy for pybackup.
 
 All pybackup-specific errors inherit from PyBackupError.
-This allows clean exception handling and consistent CLI output.
+Every exception accepts an optional `details` parameter for
+structured context (dict, str, etc.) separate from the message.
 """
+
+from __future__ import annotations
+from typing import Any
 
 
 class PyBackupError(Exception):
     """
     Base exception for all pybackup errors.
 
-    Catch this if you want to handle *any* pybackup-related failure
-    in one place (CLI, cron, systemd).
+    Attributes:
+        message:  Human-readable error description.
+        details:  Optional structured context (dict, str, list, …).
     """
-    pass
+
+    def __init__(self, message: str, details: Any = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.details = details
+
+    def __str__(self) -> str:
+        if self.details:
+            return f"{self.message} | details={self.details}"
+        return self.message
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "error": self.__class__.__name__,
+            "message": self.message,
+            "details": self.details,
+        }
 
 
 class ConfigError(PyBackupError):
@@ -23,57 +44,52 @@ class ConfigError(PyBackupError):
     Examples:
     - YAML syntax errors
     - Missing required fields
-    - Invalid values (wrong types, unsupported options)
+    - Invalid types or unsupported options
     """
-    pass
 
 
 class EngineError(PyBackupError):
     """
-    Raised by backup engines when a backup operation fails.
+    Raised by backup engines for operation-level failures.
 
     Examples:
-    - Database dump command fails
+    - External process (pg_dump, mongodump) failed
     - Source directory does not exist
     - Permission denied
     """
-    pass
 
 
 class BackupError(PyBackupError):
     """
-    Raised when a backup run fails at a higher level.
+    Raised for higher-level backup failures.
 
     Examples:
-    - One or more backup jobs fail
-    - Partial backup completion
-    - Verification failure
+    - One or more jobs fail
+    - Partial completion
+    - Pre/post-hook failure
     """
-    pass
 
 
 class SecurityError(PyBackupError):
     """
-    Raised when a security-related issue occurs.
+    Raised for security-related issues.
 
     Examples:
-    - Missing required environment variables (passwords)
-    - Invalid credentials
-    - Unsafe permissions detected
+    - Missing required credentials
+    - Unsafe file permissions
+    - Secret resolution failure
     """
-    pass
 
 
 class ManifestError(PyBackupError):
     """
-    Raised when backup manifest creation or parsing fails.
+    Raised when manifest creation or parsing fails.
 
     Examples:
     - Unable to write manifest file
-    - Invalid manifest format
+    - Invalid/corrupt manifest
     - Checksum mismatch in manifest
     """
-    pass
 
 
 class VerificationError(PyBackupError):
@@ -84,6 +100,24 @@ class VerificationError(PyBackupError):
     - Checksum mismatch
     - Missing backup files
     - Corrupted archive
-    - Incomplete backup detected
     """
-    pass
+
+
+class DatabaseError(PyBackupError):
+    """
+    Raised for internal pybackup database (SQLite) errors.
+
+    Examples:
+    - Schema migration failure
+    - Query execution error
+    """
+
+
+class ServerError(PyBackupError):
+    """
+    Raised for web server errors.
+
+    Examples:
+    - Port already in use
+    - Static asset not found
+    """

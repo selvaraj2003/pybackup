@@ -5,67 +5,57 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pybackup"
 version = "1.0.0"
-description = "CLI-based backup engine for files and databases (MongoDB, PostgreSQL, MySQL, MSSQL)"
+description = "Production-grade backup engine for files and databases with a web UI"
 readme = "README.md"
-requires-python = ">=3.9"
 license = { text = "MIT" }
-
-authors = [
-    { name = "Selvaraj Iyyappan" }
-]
-
-keywords = [
-    "backup",
-    "cli",
-    "devops",
-    "database",
-    "mongodb",
-    "postgresql",
-    "mysql",
-    "mssql",
-    "linux",
-    "cron"
-]
-
+requires-python = ">=3.10"
+authors = [{ name = "PyBackup Contributors" }]
+keywords = ["backup", "database", "mongodb", "postgres", "mysql", "mssql", "files"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
+    "Environment :: Web Environment",
     "Intended Audience :: System Administrators",
-    "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: System :: Archiving :: Backup",
-    "Topic :: System :: Systems Administration"
 ]
 
 dependencies = [
     "click>=8.1",
-    "PyYAML>=6.0"
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.4",
-    "pytest-cov",
-    "black",
-    "ruff"
-]
+dev = ["pytest>=7.0", "pytest-cov", "black", "ruff", "mypy"]
 
 [project.scripts]
 pybackup = "pybackup.cli:main"
 
-[tool.setuptools]
-packages = ["pybackup"]
+[project.urls]
+Homepage = "https://github.com/selvaraj2003/pybackup"
+Documentation = "https://github.com/selvaraj2003/pybackup"
+Repository = "https://github.com/selvaraj2003/pybackup"
+Issues = "https://github.com/selvaraj2003/pybackup"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pybackup*"]
 
 [tool.setuptools.package-data]
-pybackup = ["config/*.yaml"]
+"pybackup.static" = ["**/*"]
 
 [tool.black]
-line-length = 88
+line-length = 100
+target-version = ["py311"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

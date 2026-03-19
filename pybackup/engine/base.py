@@ -1,17 +1,19 @@
 """
-Abstract base class for all pybackup engines.
+Abstract base class for all pybackup backup engines.
 
-Defines:
-- Common lifecycle (prepare → run → finalize)
-- Logging
-- Error handling
-- Retention hooks
+Lifecycle:  prepare() → run() → finalize()
+
+Concrete engines MUST implement ``run()``.
+All other lifecycle hooks are optional overrides.
 """
 
-from abc import ABC, abstractmethod
-from datetime import datetime
-from pathlib import Path
+from __future__ import annotations
+
 import logging
+from abc import ABC, abstractmethod
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 from pybackup.utils.exceptions import BackupError
 
@@ -20,102 +22,132 @@ logger = logging.getLogger(__name__)
 
 class BaseBackupEngine(ABC):
     """
-    Base class for all backup engines.
+    Abstract base for all backup engines.
 
-    Concrete engines MUST implement:
-    - run()
+    Constructor signature (uniform across all engines)::
+
+        Engine(job_name, job_config, global_config)
+
+    :param job_name:     Logical name for this backup job (from YAML)
+    :param job_config:   Engine-specific config block (dict)
+    :param global_config: Top-level ``global:`` config block (dict)
     """
 
-    def __init__(self, name: str, config: dict, global_config: dict):
-        """
-        :param name: Logical job/engine name
-        :param config: Engine-specific config section
-        :param global_config: Global config section
-        """
-        self.name = name
-        self.config = config
+    def __init__(
+        self,
+        job_name: str,
+        job_config: dict[str, Any],
+        global_config: dict[str, Any],
+    ) -> None:
+        self.job_name = job_name
+        self.job_config = job_config
         self.global_config = global_config
 
         self.backup_root = Path(global_config.get("backup_root", "/backups"))
-        self.timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        self.compress = job_config.get("compress", global_config.get("compress", False))
+        self.retention_days: int = global_config.get("retention_days", 7)
+
+        # Stable timestamp for the whole job run
+        self._started_at = datetime.now(tz=timezone.utc)
+        self.timestamp = self._started_at.strftime("%Y%m%d_%H%M%S")
 
         logger.debug(
-            "Initialized %s engine name=%s backup_root=%s",
+            "Initialised %s | job=%s backup_root=%s",
             self.__class__.__name__,
-            self.name,
+            self.job_name,
             self.backup_root,
         )
 
-    # -------------------------
-    # Public API
-    # -------------------------
+    # ─── Public API ────────────────────────────────────────────────
 
-    def execute(self) -> None:
+    def execute(self) -> dict[str, Any]:
         """
-        Execute the backup lifecycle with safety guarantees.
+        Run the full backup lifecycle and return a result summary.
+
+        :returns: Dict with keys: job_name, engine, status, output_path, error
+        :raises BackupError: On any failure (wraps unexpected exceptions)
         """
-        logger.info("[%s] Backup started", self.name)
+        result: dict[str, Any] = {
+            "job_name": self.job_name,
+            "engine": self.__class__.__name__,
+            "started_at": self._started_at.isoformat(),
+            "status": "running",
+            "output_path": None,
+            "error": None,
+        }
+
+        logger.info("[%s] ▶ Backup started", self.job_name)
 
         try:
             self.prepare()
-            self.run()
+            output_path = self.run()
             self.finalize()
-            logger.info("[%s] Backup finished successfully", self.name)
 
-        except BackupError:
-            # Known, expected backup failure
-            logger.error("[%s] Backup failed", self.name)
+            result["status"] = "success"
+            result["output_path"] = str(output_path) if output_path else None
+            result["finished_at"] = datetime.now(tz=timezone.utc).isoformat()
+
+            logger.info("[%s] ✔ Backup finished successfully", self.job_name)
+
+        except BackupError as exc:
+            result["status"] = "failed"
+            result["error"] = str(exc)
+            result["finished_at"] = datetime.now(tz=timezone.utc).isoformat()
+            logger.error("[%s] ✘ Backup failed: %s", self.job_name, exc)
             raise
 
         except Exception as exc:
-            # Unexpected crash
-            logger.exception("[%s] Backup crashed", self.name)
-            raise BackupError(str(exc)) from exc
+            result["status"] = "crashed"
+            result["error"] = str(exc)
+            result["finished_at"] = datetime.now(tz=timezone.utc).isoformat()
+            logger.exception("[%s] ✘ Backup crashed unexpectedly", self.job_name)
+            raise BackupError(
+                f"Unexpected error in {self.__class__.__name__}",
+                details={"original": str(exc)},
+            ) from exc
 
-    # -------------------------
-    # Lifecycle hooks
-    # -------------------------
+        return result
+
+    # ─── Lifecycle hooks ───────────────────────────────────────────
 
     def prepare(self) -> None:
-        """
-        Optional pre-backup hook.
-        """
-        pass
+        """Optional pre-backup hook. Override as needed."""
 
     @abstractmethod
-    def run(self) -> None:
+    def run(self) -> Path | None:
         """
         Perform the actual backup.
 
-        MUST be implemented by concrete engines.
+        :returns: Path to the produced backup file/directory, or None
+        :raises BackupError: On failure
         """
-        raise NotImplementedError
 
     def finalize(self) -> None:
-        """
-        Optional post-backup hook.
-        """
-        pass
+        """Optional post-backup hook. Override as needed."""
 
-    # -------------------------
-    # Helper utilities
-    # -------------------------
+    # ─── Helpers ───────────────────────────────────────────────────
 
     def ensure_dir(self, path: Path) -> None:
-        """
-        Ensure a directory exists.
-        """
+        """Create directory tree; raise BackupError on failure."""
         try:
             path.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            raise BackupError(f"Unable to create directory {path}: {exc}") from exc
+            raise BackupError(
+                f"Cannot create directory: {path}",
+                details={"path": str(path), "os_error": str(exc)},
+            ) from exc
 
-    def get_job_output_dir(self) -> Path:
+    def get_output_dir(self) -> Path:
         """
-        Return the output directory for this job.
-        """
-        output = self.config.get("output")
-        if not output:
-            raise BackupError("Missing required 'output' path in job config")
+        Resolve the output directory for this job, creating it if needed.
 
-        return Path(output) / self.name / self.timestamp
+        Priority: job_config["output"] → backup_root / job_name / timestamp
+        """
+        base = self.job_config.get("output")
+        if base:
+            out = Path(base) / self.timestamp
+        else:
+            out = self.backup_root / self.job_name / self.timestamp
+
+        self.ensure_dir(out)
+        return out

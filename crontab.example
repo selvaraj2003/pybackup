@@ -1,0 +1,20 @@
+# PyBackup — example crontab entries
+# Install with: crontab -e
+#
+# Environment variables for secrets:
+# PGPASSWORD=secret
+# MYSQL_PASSWORD=secret
+# MONGO_PASSWORD=secret
+
+# Run all enabled backup jobs every day at 2:00 AM
+0 2 * * * /usr/local/bin/pybackup run --config /etc/pybackup/pybackup.yaml >> /var/log/pybackup/cron.log 2>&1
+
+# Run every 6 hours
+0 */6 * * * /usr/local/bin/pybackup run --config /etc/pybackup/pybackup.yaml
+
+# Verify the most recent PostgreSQL backup at 3:00 AM
+# (generate checksum first, store it, then verify)
+# 0 3 * * * /usr/local/bin/pybackup checksum /backups/postgres/prod/latest.dump > /backups/postgres/prod/latest.sha256
+
+# Weekly deep run on Sunday at midnight
+0 0 * * 0 /usr/local/bin/pybackup run --config /etc/pybackup/pybackup.yaml

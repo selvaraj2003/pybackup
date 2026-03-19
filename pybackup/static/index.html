@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PyBackup — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════ SIDEBAR ════════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="8" fill="var(--accent)"/>
+      <path d="M7 9h14M7 14h14M7 19h9" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <span class="logo-text">PyBackup</span>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a class="nav-item active" data-view="dashboard" href="#">
+      <svg viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="7" height="7" rx="1.5" fill="currentColor"/><rect x="11" y="2" width="7" height="7" rx="1.5" fill="currentColor" opacity=".4"/><rect x="2" y="11" width="7" height="7" rx="1.5" fill="currentColor" opacity=".4"/><rect x="11" y="11" width="7" height="7" rx="1.5" fill="currentColor" opacity=".4"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item" data-view="runs" href="#">
+      <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M10 6v4l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Backup Runs
+    </a>
+    <a class="nav-item" data-view="engines" href="#">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M10 2L2 6v8l8 4 8-4V6l-8-4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2v12M2 6l8 4 8-4" stroke="currentColor" stroke-width="1.5"/></svg>
+      Engines
+    </a>
+    <a class="nav-item" data-view="settings" href="#">
+      <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Settings
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <span class="version-badge">v1.0.0</span>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════ MAIN ════════════════════════════════ -->
+<div class="main-wrapper">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-btn" id="menuToggle" aria-label="Toggle menu">
+        <svg viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+      <h1 class="topbar-title" id="pageTitle">Dashboard</h1>
+    </div>
+    <div class="topbar-right">
+      <div class="status-dot" id="statusDot" title="Server status"></div>
+      <button class="icon-btn" id="refreshBtn" title="Refresh data">
+        <svg viewBox="0 0 20 20" fill="none"><path d="M4 10a6 6 0 1 0 1.2-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M4 5v4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="icon-sun" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg class="icon-moon" viewBox="0 0 20 20" fill="none"><path d="M17 13A7 7 0 0 1 7 3a7 7 0 1 0 10 10z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Dashboard View ── -->
+  <section class="view active" id="view-dashboard">
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card" id="statTotal">
+        <div class="stat-icon stat-blue"><svg viewBox="0 0 20 20" fill="none"><rect x="3" y="5" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M3 9h14" stroke="currentColor" stroke-width="1.5"/><path d="M7 5V3M13 5V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <div class="stat-body"><div class="stat-value" id="valTotal">—</div><div class="stat-label">Total Runs</div></div>
+      </div>
+      <div class="stat-card" id="statSuccess">
+        <div class="stat-icon stat-green"><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M7 10l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="stat-body"><div class="stat-value" id="valSuccess">—</div><div class="stat-label">Successful</div></div>
+      </div>
+      <div class="stat-card" id="statFailed">
+        <div class="stat-icon stat-red"><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M13 7l-6 6M7 7l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <div class="stat-body"><div class="stat-value" id="valFailed">—</div><div class="stat-label">Failed</div></div>
+      </div>
+      <div class="stat-card" id="statRate">
+        <div class="stat-icon stat-purple"><svg viewBox="0 0 20 20" fill="none"><path d="M3 14l4-4 3 3 4-5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="stat-body"><div class="stat-value" id="valRate">—</div><div class="stat-label">Success Rate</div></div>
+      </div>
+    </div>
+
+    <div class="panel-row">
+      <div class="panel" style="flex:2">
+        <div class="panel-header"><h2>Activity (30 days)</h2></div>
+        <div class="chart-container">
+          <canvas id="activityChart"></canvas>
+        </div>
+      </div>
+      <div class="panel" style="flex:1">
+        <div class="panel-header"><h2>By Engine</h2></div>
+        <div class="chart-container">
+          <canvas id="engineChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Recent Activity</h2>
+        <a class="panel-link" data-view="runs" href="#">View all →</a>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="recentTable">
+          <thead><tr><th>Job</th><th>Engine</th><th>Status</th><th>Started</th><th>Duration</th></tr></thead>
+          <tbody id="recentBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Runs View ── -->
+  <section class="view" id="view-runs">
+    <div class="runs-toolbar">
+      <div class="filter-group">
+        <input class="search-input" id="runSearch" type="text" placeholder="Filter by job name…" />
+        <select class="select-input" id="runStatusFilter">
+          <option value="">All statuses</option>
+          <option value="success">Success</option>
+          <option value="failed">Failed</option>
+          <option value="crashed">Crashed</option>
+          <option value="running">Running</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="addTestRunBtn">+ Add Test Run</button>
+    </div>
+
+    <div class="panel">
+      <div class="table-wrap">
+        <table class="data-table" id="runsTable">
+          <thead><tr><th>#</th><th>Job</th><th>Engine</th><th>Status</th><th>Started</th><th>Duration</th><th>Output</th><th></th></tr></thead>
+          <tbody id="runsBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="runsPagination"></div>
+    </div>
+  </section>
+
+  <!-- ── Engines View ── -->
+  <section class="view" id="view-engines">
+    <div class="engines-grid" id="enginesGrid">
+      <!-- Populated by JS -->
+    </div>
+  </section>
+
+  <!-- ── Settings View ── -->
+  <section class="view" id="view-settings">
+    <div class="panel settings-panel">
+      <div class="panel-header"><h2>Appearance</h2></div>
+      <div class="settings-form">
+        <div class="setting-row">
+          <div class="setting-info"><div class="setting-label">Theme</div><div class="setting-desc">Choose between dark and light mode</div></div>
+          <div class="theme-selector">
+            <button class="theme-btn active" data-theme-val="dark">Dark</button>
+            <button class="theme-btn" data-theme-val="light">Light</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel settings-panel">
+      <div class="panel-header"><h2>Backup Settings</h2></div>
+      <div class="settings-form">
+        <div class="setting-row">
+          <div class="setting-info"><div class="setting-label">Retention Days</div><div class="setting-desc">How long to keep backup records</div></div>
+          <input class="setting-input" type="number" id="retentionDays" min="1" max="365" value="7" />
+        </div>
+        <div class="setting-row">
+          <div class="setting-info"><div class="setting-label">Log Level</div><div class="setting-desc">Verbosity of system logs</div></div>
+          <select class="select-input" id="logLevel">
+            <option value="DEBUG">DEBUG</option>
+            <option value="INFO" selected>INFO</option>
+            <option value="WARNING">WARNING</option>
+            <option value="ERROR">ERROR</option>
+          </select>
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+        <span class="save-status" id="saveStatus"></span>
+      </div>
+    </div>
+
+    <div class="panel settings-panel">
+      <div class="panel-header"><h2>About</h2></div>
+      <div class="about-grid">
+        <div class="about-item"><span class="about-key">Version</span><span class="about-val">1.0.0</span></div>
+        <div class="about-item"><span class="about-key">Engine</span><span class="about-val">Pure Python stdlib</span></div>
+        <div class="about-item"><span class="about-key">Database</span><span class="about-val">SQLite (WAL mode)</span></div>
+        <div class="about-item"><span class="about-key">License</span><span class="about-val">MIT</span></div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.main-wrapper -->
+
+<!-- Run detail modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="runModal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Run Details</h2>
+      <button class="modal-close" id="modalClose">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

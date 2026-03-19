@@ -52,6 +52,7 @@ htmlcov/
 *.env
 secrets.yaml
 secrets.yml
+pybackup.yml
 
 # =========================
 # Backup / archive files

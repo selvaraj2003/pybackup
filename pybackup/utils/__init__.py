@@ -1,11 +1,5 @@
 """
 Utility helpers shared across pybackup.
-
-This package contains reusable, framework-independent utilities such as:
-- custom exceptions
-- logging helpers
-- time/date helpers
-- checksum utilities (future)
 """
 
 from .exceptions import (
@@ -13,6 +7,11 @@ from .exceptions import (
     ConfigError,
     BackupError,
     EngineError,
+    SecurityError,
+    ManifestError,
+    VerificationError,
+    DatabaseError,
+    ServerError,
 )
 
 __all__ = [
@@ -20,4 +19,9 @@ __all__ = [
     "ConfigError",
     "BackupError",
     "EngineError",
+    "SecurityError",
+    "ManifestError",
+    "VerificationError",
+    "DatabaseError",
+    "ServerError",
 ]

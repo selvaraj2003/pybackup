@@ -1,73 +1,107 @@
-import os
+"""
+MongoDB Backup Engine using ``mongodump``.
+"""
+
+from __future__ import annotations
+
+import logging
 import subprocess
-import datetime
 from pathlib import Path
+from typing import Any
 
 from pybackup.engine.base import BaseBackupEngine
-from pybackup.utils.logger import setup_logging
 from pybackup.utils.exceptions import BackupError
+from pybackup.utils.security import get_secret, mask_secret
+
+logger = logging.getLogger(__name__)
 
 
 class MongoBackupEngine(BaseBackupEngine):
-    """
-    MongoDB Backup Engine using mongodump
-    """
+    """Backup engine wrapping the ``mongodump`` CLI tool."""
 
-    def __init__(self, config: dict):
-        super().__init__(config)
-        self.logger = setup_logging("mongo-backup")
+    def __init__(
+        self,
+        job_name: str,
+        job_config: dict[str, Any],
+        global_config: dict[str, Any],
+    ) -> None:
+        super().__init__(job_name, job_config, global_config)
 
-        mongo_cfg = config.get("mongo", {})
-        self.host = mongo_cfg.get("host", "localhost")
-        self.port = mongo_cfg.get("port", 27017)
-        self.username = mongo_cfg.get("username")
-        self.password = mongo_cfg.get("password")
-        self.auth_db = mongo_cfg.get("auth_db", "admin")
-        self.database = mongo_cfg.get("database")  # optional
-        self.output_dir = mongo_cfg.get("output_dir", "/var/backups/mongo")
+        self.host: str = job_config.get("host", "localhost")
+        self.port: int = int(job_config.get("port", 27017))
+        self.username: str | None = job_config.get("username")
+        self.password: str | None = get_secret(
+            job_config.get("password"), name="mongodb.password"
+        )
+        self.auth_db: str = job_config.get("auth_db", "admin")
+        self.database: str | None = job_config.get("database")  # None = all DBs
 
-    def run(self):
-        """
-        Execute MongoDB backup
-        """
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = Path(self.output_dir) / f"mongo_backup_{timestamp}"
-        backup_path.mkdir(parents=True, exist_ok=True)
+        logger.debug(
+            "[%s] Mongo config: host=%s port=%d db=%s user=%s",
+            self.job_name, self.host, self.port,
+            self.database or "<all>",
+            self.username or "<none>",
+        )
 
-        command = [
+    def run(self) -> Path:
+        output_dir = self.get_output_dir()
+
+        cmd = [
             "mongodump",
             "--host", self.host,
             "--port", str(self.port),
-            "--out", str(backup_path)
+            "--out", str(output_dir),
         ]
 
         if self.username and self.password:
-            command.extend([
+            cmd += [
                 "--username", self.username,
                 "--password", self.password,
-                "--authenticationDatabase", self.auth_db
-            ])
+                "--authenticationDatabase", self.auth_db,
+            ]
 
         if self.database:
-            command.extend(["--db", self.database])
+            cmd += ["--db", self.database]
 
-        self.logger.info(f"Starting MongoDB backup → {backup_path}")
+        logger.info(
+            "[%s] Starting mongodump → %s (db=%s)",
+            self.job_name, output_dir, self.database or "<all>",
+        )
 
+        self._run_subprocess(cmd)
+        logger.info("[%s] MongoDB backup completed", self.job_name)
+        return output_dir
+
+    # ─── Helpers ───────────────────────────────────────────────────
+
+    def _run_subprocess(self, cmd: list[str]) -> None:
         try:
             result = subprocess.run(
-                command,
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                check=True
+                check=True,
+                timeout=3600,
             )
-
-            self.logger.info("MongoDB backup completed successfully")
-            self.logger.debug(result.stdout)
-
-        except subprocess.CalledProcessError as exc:
-            self.logger.error(exc.stderr)
+            if result.stdout:
+                logger.debug("[%s] mongodump stdout: %s", self.job_name, result.stdout)
+        except subprocess.TimeoutExpired as exc:
             raise BackupError(
-                "MongoDB backup failed",
-                details=exc.stderr
-            )
+                "mongodump timed out after 3600 s",
+                details={"job": self.job_name},
+            ) from exc
+        except subprocess.CalledProcessError as exc:
+            raise BackupError(
+                "mongodump exited with a non-zero status",
+                details={
+                    "job": self.job_name,
+                    "returncode": exc.returncode,
+                    "stderr": exc.stderr,
+                },
+            ) from exc
+        except FileNotFoundError as exc:
+            raise BackupError(
+                "mongodump not found — is it installed and on PATH?",
+                details={"job": self.job_name},
+            ) from exc

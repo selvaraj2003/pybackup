@@ -1,58 +1,76 @@
 """
 Central logging configuration for pybackup.
 
-Features:
-- Console + optional file logging
-- Consistent format
-- Log level from config
-- Safe for CLI, cron, systemd
+Usage:
+    # Once at startup (CLI / server entry point):
+    configure_logging(level="DEBUG", log_file="/var/log/pybackup/pybackup.log")
+
+    # In every module:
+    import logging
+    logger = logging.getLogger(__name__)
 """
+
+from __future__ import annotations
 
 import logging
 import sys
 from pathlib import Path
+
 from pybackup.constants import LOG_FORMAT
 
+_configured = False
 
-def setup_logging(
+
+def configure_logging(
     log_level: str = "INFO",
     log_file: str | None = None,
 ) -> None:
     """
-    Configure global logging for pybackup.
+    Configure the root logger for pybackup.
 
-    This configures the ROOT logger.
-    Individual modules should use logging.getLogger(__name__).
+    Idempotent — safe to call multiple times; only configures once
+    unless `force=True` equivalent behaviour is needed (clear handlers
+    and reconfigure by calling this explicitly).
 
-    :param log_level: INFO, DEBUG, WARNING, ERROR
-    :param log_file: Optional log file path
+    :param log_level: One of DEBUG / INFO / WARNING / ERROR / CRITICAL
+    :param log_file:  Optional path for persistent log file output
     """
+    global _configured
 
     level = logging.getLevelName(log_level.upper())
     if not isinstance(level, int):
         level = logging.INFO
 
-    root_logger = logging.getLogger()
-    root_logger.setLevel(level)
-
-    # Prevent duplicate logs (important for tests & re-runs)
-    if root_logger.handlers:
-        root_logger.handlers.clear()
+    root = logging.getLogger()
+    root.setLevel(level)
+    root.handlers.clear()  # Always reset to avoid duplicate handlers
 
     formatter = logging.Formatter(LOG_FORMAT)
 
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(level)
-    console_handler.setFormatter(formatter)
-    root_logger.addHandler(console_handler)
+    # ── Console ──────────────────────────────────────────────────────
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(level)
+    console.setFormatter(formatter)
+    root.addHandler(console)
 
-    # Optional file handler
+    # ── File (optional) ──────────────────────────────────────────────
     if log_file:
         log_path = Path(log_file)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            fh = logging.FileHandler(log_path)
+            fh.setLevel(level)
+            fh.setFormatter(formatter)
+            root.addHandler(fh)
+        except OSError as exc:
+            root.warning("Could not open log file %s: %s", log_file, exc)
 
-        file_handler = logging.FileHandler(log_path)
-        file_handler.setLevel(level)
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
+    _configured = True
+
+
+def get_logger(name: str) -> logging.Logger:
+    """
+    Return a named logger.  Always prefer ``logging.getLogger(__name__)``
+    inside modules; use this helper only when the name is dynamic.
+    """
+    return logging.getLogger(name)
