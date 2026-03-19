@@ -9,7 +9,7 @@ Supports:
 - SQLite job history (pluggable to other DBs)
 """
 
-__version__ = "1.0.0"
+__version__ = "0.1.0"
 __author__ = "PyBackup Contributors"
 __license__ = "MIT"
 
