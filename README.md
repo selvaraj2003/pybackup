@@ -1,4 +1,4 @@
-# PyBackup
+# PyBackup Engine
 
 > Production-grade backup engine for files and databases — with a built-in web dashboard.
 

@@ -80,7 +80,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/project/pybackup-engine/
+      url: https://github.com/selvaraj2003/pybackup-engine
 
     permissions:
       id-token: write
