@@ -67,10 +67,14 @@ class PostgresBackupEngine(BaseBackupEngine):
 
         cmd = [
             "pg_dump",
-            "-h", self.host,
-            "-p", str(self.port),
-            "-U", self.username,
-            "-d", self.database,
+            "-h",
+            self.host,
+            "-p",
+            str(self.port),
+            "-U",
+            self.username,
+            "-d",
+            self.database,
         ]
 
         format_flag = {"custom": "c", "directory": "d", "plain": "p"}[self.dump_format]
@@ -78,7 +82,9 @@ class PostgresBackupEngine(BaseBackupEngine):
 
         logger.info(
             "[%s] Starting pg_dump → %s (format=%s)",
-            self.job_name, backup_file, self.dump_format,
+            self.job_name,
+            backup_file,
+            self.dump_format,
         )
 
         env = self._build_env()

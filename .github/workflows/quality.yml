@@ -2,9 +2,9 @@ name: Code Quality
 
 on:
   pull_request:
-    branches: [main, master]
+    branches: [main]
   push:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   lint:
@@ -23,7 +23,7 @@ jobs:
       - name: Install tools
         run: |
           pip install --upgrade pip
-          pip install ruff black
+            pip install ruff black
 
       - name: Ruff lint check
         run: ruff check pybackup/ tests/

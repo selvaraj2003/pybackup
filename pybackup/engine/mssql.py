@@ -31,9 +31,7 @@ class MSSQLBackupEngine(BaseBackupEngine):
         self.port: int = int(job_config.get("port", 1433))
         self.database: str = job_config.get("database", "")
         self.username: str = job_config.get("username", "")
-        self.password: str | None = get_secret(
-            job_config.get("password"), name="mssql.password"
-        )
+        self.password: str | None = get_secret(job_config.get("password"), name="mssql.password")
         self.encrypt: bool = job_config.get("encrypt", False)
 
         if not self.database:
@@ -53,11 +51,15 @@ class MSSQLBackupEngine(BaseBackupEngine):
 
         cmd = [
             "sqlcmd",
-            "-S", f"{self.host},{self.port}",
-            "-U", self.username,
-            "-P", self.password or "",
-            "-Q", sql,
-            "-b",   # Exit with error on SQL error
+            "-S",
+            f"{self.host},{self.port}",
+            "-U",
+            self.username,
+            "-P",
+            self.password or "",
+            "-Q",
+            sql,
+            "-b",  # Exit with error on SQL error
         ]
 
         if self.encrypt:

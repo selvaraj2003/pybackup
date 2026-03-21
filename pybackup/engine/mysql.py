@@ -31,9 +31,7 @@ class MySQLBackupEngine(BaseBackupEngine):
         self.port: int = int(job_config.get("port", 3306))
         self.database: str = job_config.get("database", "")
         self.username: str = job_config.get("username", "")
-        self.password: str | None = get_secret(
-            job_config.get("password"), name="mysql.password"
-        )
+        self.password: str | None = get_secret(job_config.get("password"), name="mysql.password")
         self.single_transaction: bool = job_config.get("single_transaction", True)
 
         if not self.database:
@@ -47,9 +45,12 @@ class MySQLBackupEngine(BaseBackupEngine):
 
         cmd = [
             "mysqldump",
-            "-h", self.host,
-            "-P", str(self.port),
-            "-u", self.username,
+            "-h",
+            self.host,
+            "-P",
+            str(self.port),
+            "-u",
+            self.username,
         ]
 
         if self.password:

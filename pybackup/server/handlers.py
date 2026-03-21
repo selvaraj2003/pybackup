@@ -18,15 +18,17 @@ Routes:
   GET    /api/settings
   POST   /api/settings
 """
+
 from __future__ import annotations
-import json, logging
-from typing import Any
-from pybackup.auth import sessions, UserDB
+import logging
+
+from pybackup.auth import sessions
 
 logger = logging.getLogger(__name__)
 
 
 # ── Auth helpers ─────────────────────────────────────────────────────
+
 
 def _get_session(req):
     """Extract session from Authorization header or cookie."""
@@ -45,6 +47,7 @@ def _get_session(req):
 def _require_auth(req):
     """Return (session, None) or (None, error_response)."""
     from pybackup.server.httpserver import error_response
+
     s = _get_session(req)
     if s is None:
         return None, error_response("Authentication required", 401)
@@ -53,8 +56,10 @@ def _require_auth(req):
 
 def _require_admin(req):
     s, err = _require_auth(req)
-    if err: return None, err
+    if err:
+        return None, err
     from pybackup.server.httpserver import error_response
+
     if s.role != "admin":
         return None, error_response("Admin access required", 403)
     return s, None
@@ -62,15 +67,18 @@ def _require_admin(req):
 
 # ── Auth handlers ────────────────────────────────────────────────────
 
+
 def handle_setup_needed(req, db):
     from pybackup.server.httpserver import json_response
     from pybackup.server.httpserver import PyBackupHandler
+
     user_db = PyBackupHandler.user_db
     return json_response({"setup_needed": not user_db.has_any_user()})
 
 
 def handle_login(req, db):
     from pybackup.server.httpserver import json_response, error_response
+
     try:
         body = req.json()
     except Exception:
@@ -83,21 +91,25 @@ def handle_login(req, db):
         return error_response("Username and password are required")
 
     from pybackup.server.httpserver import PyBackupHandler
+
     user_db = PyBackupHandler.user_db
     user = user_db.authenticate(username, password)
     if user is None:
         return error_response("Invalid username or password", 401)
 
     token = sessions.create(user["id"], user["username"], user["role"])
-    return json_response({
-        "token":    token,
-        "username": user["username"],
-        "role":     user["role"],
-    })
+    return json_response(
+        {
+            "token": token,
+            "username": user["username"],
+            "role": user["role"],
+        }
+    )
 
 
 def handle_logout(req, db):
     from pybackup.server.httpserver import json_response
+
     s = _get_session(req)
     if s:
         sessions.delete(s.token)
@@ -106,23 +118,27 @@ def handle_logout(req, db):
 
 def handle_me(req, db):
     from pybackup.server.httpserver import json_response
+
     s, err = _require_auth(req)
-    if err: return err
+    if err:
+        return err
     return json_response({"user_id": s.user_id, "username": s.username, "role": s.role})
 
 
 def handle_change_password(req, db):
     from pybackup.server.httpserver import json_response, error_response
+
     s, err = _require_auth(req)
-    if err: return err
+    if err:
+        return err
     try:
         body = req.json()
     except Exception:
         return error_response("Invalid JSON body")
 
-    current  = str(body.get("current_password", ""))
-    new_pw   = str(body.get("new_password", ""))
-    confirm  = str(body.get("confirm_password", ""))
+    current = str(body.get("current_password", ""))
+    new_pw = str(body.get("new_password", ""))
+    confirm = str(body.get("confirm_password", ""))
 
     if not current or not new_pw or not confirm:
         return error_response("All password fields are required")
@@ -132,12 +148,14 @@ def handle_change_password(req, db):
         return error_response("Password must be at least 8 characters")
 
     from pybackup.server.httpserver import PyBackupHandler
+
     user_db = PyBackupHandler.user_db
     user = user_db.get_by_id(s.user_id)
     if user is None:
         return error_response("User not found", 404)
 
     from pybackup.auth import verify_password
+
     if not verify_password(current, user["password_hash"]):
         return error_response("Current password is incorrect", 401)
 
@@ -149,11 +167,15 @@ def handle_change_password(req, db):
 
 # ── User management (admin only) ──────────────────────────────────────
 
+
 def handle_list_users(req, db):
     from pybackup.server.httpserver import json_response
+
     s, err = _require_admin(req)
-    if err: return err
+    if err:
+        return err
     from pybackup.server.httpserver import PyBackupHandler
+
     user_db = PyBackupHandler.user_db
     users = user_db.list_users()
     # Never return password hashes
@@ -164,8 +186,10 @@ def handle_list_users(req, db):
 
 def handle_create_user(req, db):
     from pybackup.server.httpserver import json_response, error_response
+
     s, err = _require_admin(req)
-    if err: return err
+    if err:
+        return err
     try:
         body = req.json()
     except Exception:
@@ -173,8 +197,8 @@ def handle_create_user(req, db):
 
     username = str(body.get("username", "")).strip()
     password = str(body.get("password", ""))
-    role     = str(body.get("role", "viewer"))
-    email    = body.get("email")
+    role = str(body.get("role", "viewer"))
+    email = body.get("email")
 
     if not username or not password:
         return error_response("Username and password are required")
@@ -183,6 +207,7 @@ def handle_create_user(req, db):
 
     from pybackup.utils.exceptions import SecurityError
     from pybackup.server.httpserver import PyBackupHandler
+
     user_db = PyBackupHandler.user_db
     try:
         uid = user_db.create_user(username, password, role=role, email=email)
@@ -195,8 +220,10 @@ def handle_create_user(req, db):
 
 def handle_delete_user(req, db):
     from pybackup.server.httpserver import json_response, error_response
+
     s, err = _require_admin(req)
-    if err: return err
+    if err:
+        return err
 
     uid = _parse_id(req)
     if uid is None:
@@ -205,6 +232,7 @@ def handle_delete_user(req, db):
         return error_response("Cannot delete your own account", 400)
 
     from pybackup.server.httpserver import PyBackupHandler
+
     user_db = PyBackupHandler.user_db
     if user_db.count_admins() <= 1:
         target = user_db.get_by_id(uid)
@@ -219,10 +247,13 @@ def handle_delete_user(req, db):
 
 # ── Backup data handlers ──────────────────────────────────────────────
 
+
 def handle_stats(req, db):
     from pybackup.server.httpserver import json_response, error_response
+
     _, err = _require_auth(req)
-    if err: return err
+    if err:
+        return err
     try:
         return json_response(db.stats())
     except Exception as exc:
@@ -232,21 +263,25 @@ def handle_stats(req, db):
 
 def handle_list_runs(req, db):
     from pybackup.server.httpserver import json_response
+
     _, err = _require_auth(req)
-    if err: return err
-    limit  = min(req.query_int("limit", 50), 500)
+    if err:
+        return err
+    limit = min(req.query_int("limit", 50), 500)
     offset = req.query_int("offset", 0)
-    job    = req.query_str("job")    or None
+    job = req.query_str("job") or None
     status = req.query_str("status") or None
-    runs   = db.list_runs(limit=limit, offset=offset, job_name=job, status=status)
-    total  = db.count_runs(job_name=job, status=status)
+    runs = db.list_runs(limit=limit, offset=offset, job_name=job, status=status)
+    total = db.count_runs(job_name=job, status=status)
     return json_response({"runs": runs, "total": total, "limit": limit, "offset": offset})
 
 
 def handle_get_run(req, db):
     from pybackup.server.httpserver import json_response, error_response
+
     _, err = _require_auth(req)
-    if err: return err
+    if err:
+        return err
     run_id = _parse_id(req)
     if run_id is None:
         return error_response("Invalid run id", 400)
@@ -259,8 +294,10 @@ def handle_get_run(req, db):
 
 def handle_delete_run(req, db):
     from pybackup.server.httpserver import json_response, error_response
+
     _, err = _require_admin(req)
-    if err: return err
+    if err:
+        return err
     run_id = _parse_id(req)
     if run_id is None:
         return error_response("Invalid run id", 400)
@@ -271,33 +308,40 @@ def handle_delete_run(req, db):
 
 def handle_create_run(req, db):
     from pybackup.server.httpserver import json_response, error_response
+
     _, err = _require_auth(req)
-    if err: return err
+    if err:
+        return err
     try:
         body = req.json()
     except Exception:
         return error_response("Invalid JSON body")
     job_name = body.get("job_name", "manual")
-    engine   = body.get("engine",   "manual")
-    status   = body.get("status",   "success")
+    engine = body.get("engine", "manual")
+    status = body.get("status", "success")
     run_id = db.create_run(job_name, engine)
-    db.finish_run(run_id, status=status,
-                  output_path=body.get("output_path"), error=body.get("error"))
+    db.finish_run(
+        run_id, status=status, output_path=body.get("output_path"), error=body.get("error")
+    )
     return json_response(db.get_run(run_id), 201)
 
 
 def handle_get_settings(req, db):
     from pybackup.server.httpserver import json_response
+
     _, err = _require_auth(req)
-    if err: return err
+    if err:
+        return err
     keys = ["theme", "log_level", "retention_days"]
     return json_response({k: db.get_setting(k) for k in keys})
 
 
 def handle_update_settings(req, db):
     from pybackup.server.httpserver import json_response, error_response
+
     _, err = _require_auth(req)
-    if err: return err
+    if err:
+        return err
     try:
         body = req.json()
     except Exception:
@@ -313,28 +357,31 @@ def handle_update_settings(req, db):
 
 # ── Route registration ────────────────────────────────────────────────
 
+
 def register_routes(router) -> None:
     # Auth
-    router.add("GET",    "/api/auth/setup-needed",    handle_setup_needed)
-    router.add("POST",   "/api/auth/login",            handle_login)
-    router.add("POST",   "/api/auth/logout",           handle_logout)
-    router.add("GET",    "/api/auth/me",               handle_me)
-    router.add("POST",   "/api/auth/change-password",  handle_change_password)
+    router.add("GET", "/api/auth/setup-needed", handle_setup_needed)
+    router.add("POST", "/api/auth/login", handle_login)
+    router.add("POST", "/api/auth/logout", handle_logout)
+    router.add("GET", "/api/auth/me", handle_me)
+    router.add("POST", "/api/auth/change-password", handle_change_password)
     # User management
-    router.add("GET",    "/api/users",                 handle_list_users)
-    router.add("POST",   "/api/users",                 handle_create_user)
-    router.add("DELETE", "/api/users/:id",             handle_delete_user)
+    router.add("GET", "/api/users", handle_list_users)
+    router.add("POST", "/api/users", handle_create_user)
+    router.add("DELETE", "/api/users/:id", handle_delete_user)
     # Backup data
-    router.add("GET",    "/api/stats",                 handle_stats)
-    router.add("GET",    "/api/runs",                  handle_list_runs)
-    router.add("POST",   "/api/runs",                  handle_create_run)
-    router.add("GET",    "/api/runs/:id",              handle_get_run)
-    router.add("DELETE", "/api/runs/:id",              handle_delete_run)
-    router.add("GET",    "/api/settings",              handle_get_settings)
-    router.add("POST",   "/api/settings",              handle_update_settings)
+    router.add("GET", "/api/stats", handle_stats)
+    router.add("GET", "/api/runs", handle_list_runs)
+    router.add("POST", "/api/runs", handle_create_run)
+    router.add("GET", "/api/runs/:id", handle_get_run)
+    router.add("DELETE", "/api/runs/:id", handle_delete_run)
+    router.add("GET", "/api/settings", handle_get_settings)
+    router.add("POST", "/api/settings", handle_update_settings)
 
 
 def _parse_id(req) -> int | None:
     raw = req.path_params.get("id") or req.query_str("id")
-    try: return int(raw)
-    except (ValueError, TypeError): return None
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        return None

@@ -115,8 +115,7 @@ class SQLiteBackend(BaseBackend):
 
     # ── backup_runs ───────────────────────────────────────────────
 
-    def create_run(self, job_name: str, engine: str,
-                   details: dict | None = None) -> int:
+    def create_run(self, job_name: str, engine: str, details: dict | None = None) -> int:
         now = datetime.now(tz=timezone.utc).isoformat()
         with self._conn() as conn:
             cur = conn.execute(
@@ -126,9 +125,9 @@ class SQLiteBackend(BaseBackend):
             )
             return cur.lastrowid
 
-    def finish_run(self, run_id: int, *, status: str,
-                   output_path: str | None = None,
-                   error: str | None = None) -> None:
+    def finish_run(
+        self, run_id: int, *, status: str, output_path: str | None = None, error: str | None = None
+    ) -> None:
         now = datetime.now(tz=timezone.utc).isoformat()
         with self._conn() as conn:
             conn.execute(
@@ -141,12 +140,21 @@ class SQLiteBackend(BaseBackend):
             row = conn.execute("SELECT * FROM backup_runs WHERE id=?", (run_id,)).fetchone()
         return dict(row) if row else None
 
-    def list_runs(self, limit: int = 100, offset: int = 0,
-                  job_name: str | None = None, status: str | None = None) -> list[dict]:
+    def list_runs(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        job_name: str | None = None,
+        status: str | None = None,
+    ) -> list[dict]:
         q = "SELECT * FROM backup_runs WHERE 1=1"
         p: list[Any] = []
-        if job_name: q += " AND job_name=?"; p.append(job_name)
-        if status:   q += " AND status=?";   p.append(status)
+        if job_name:
+            q += " AND job_name=?"
+        p.append(job_name)
+        if status:
+            q += " AND status=?"
+        p.append(status)
         q += " ORDER BY started_at DESC LIMIT ? OFFSET ?"
         p += [limit, offset]
         with self._conn() as conn:
@@ -155,8 +163,12 @@ class SQLiteBackend(BaseBackend):
     def count_runs(self, job_name: str | None = None, status: str | None = None) -> int:
         q = "SELECT COUNT(*) FROM backup_runs WHERE 1=1"
         p: list[Any] = []
-        if job_name: q += " AND job_name=?"; p.append(job_name)
-        if status:   q += " AND status=?";   p.append(status)
+        if job_name:
+            q += " AND job_name=?"
+        p.append(job_name)
+        if status:
+            q += " AND status=?"
+        p.append(status)
         with self._conn() as conn:
             return conn.execute(q, p).fetchone()[0]
 
@@ -167,15 +179,30 @@ class SQLiteBackend(BaseBackend):
 
     def stats(self) -> dict[str, Any]:
         with self._conn() as conn:
-            total   = conn.execute("SELECT COUNT(*) FROM backup_runs").fetchone()[0]
-            success = conn.execute("SELECT COUNT(*) FROM backup_runs WHERE status='success'").fetchone()[0]
-            failed  = conn.execute("SELECT COUNT(*) FROM backup_runs WHERE status IN ('failed','crashed')").fetchone()[0]
-            running = conn.execute("SELECT COUNT(*) FROM backup_runs WHERE status='running'").fetchone()[0]
-            recent  = conn.execute("SELECT job_name,engine,status,started_at,finished_at,error FROM backup_runs ORDER BY started_at DESC LIMIT 10").fetchall()
-            by_eng  = conn.execute("SELECT engine,COUNT(*) as count,SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as successes FROM backup_runs GROUP BY engine").fetchall()
-            daily   = conn.execute("SELECT DATE(started_at) as day,COUNT(*) as total,SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as ok FROM backup_runs WHERE started_at >= DATE('now','-30 days') GROUP BY day ORDER BY day").fetchall()
+            total = conn.execute("SELECT COUNT(*) FROM backup_runs").fetchone()[0]
+            success = conn.execute(
+                "SELECT COUNT(*) FROM backup_runs WHERE status='success'"
+            ).fetchone()[0]
+            failed = conn.execute(
+                "SELECT COUNT(*) FROM backup_runs WHERE status IN ('failed','crashed')"
+            ).fetchone()[0]
+            running = conn.execute(
+                "SELECT COUNT(*) FROM backup_runs WHERE status='running'"
+            ).fetchone()[0]
+            recent = conn.execute(
+                "SELECT job_name,engine,status,started_at,finished_at,error FROM backup_runs ORDER BY started_at DESC LIMIT 10"
+            ).fetchall()
+            by_eng = conn.execute(
+                "SELECT engine,COUNT(*) as count,SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as successes FROM backup_runs GROUP BY engine"
+            ).fetchall()
+            daily = conn.execute(
+                "SELECT DATE(started_at) as day,COUNT(*) as total,SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as ok FROM backup_runs WHERE started_at >= DATE('now','-30 days') GROUP BY day ORDER BY day"
+            ).fetchall()
         return {
-            "total": total, "success": success, "failed": failed, "running": running,
+            "total": total,
+            "success": success,
+            "failed": failed,
+            "running": running,
             "success_rate": round((success / total * 100) if total else 0, 1),
             "recent": [dict(r) for r in recent],
             "by_engine": [dict(r) for r in by_eng],
@@ -184,8 +211,9 @@ class SQLiteBackend(BaseBackend):
 
     # ── backup_files ──────────────────────────────────────────────
 
-    def add_file(self, run_id: int, file_path: str,
-                 file_size: int | None = None, checksum: str | None = None) -> int:
+    def add_file(
+        self, run_id: int, file_path: str, file_size: int | None = None, checksum: str | None = None
+    ) -> int:
         now = datetime.now(tz=timezone.utc).isoformat()
         with self._conn() as conn:
             cur = conn.execute(
@@ -196,9 +224,12 @@ class SQLiteBackend(BaseBackend):
 
     def list_files(self, run_id: int) -> list[dict]:
         with self._conn() as conn:
-            return [dict(r) for r in conn.execute(
-                "SELECT * FROM backup_files WHERE run_id=? ORDER BY id", (run_id,)
-            ).fetchall()]
+            return [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT * FROM backup_files WHERE run_id=? ORDER BY id", (run_id,)
+                ).fetchall()
+            ]
 
     # ── settings ──────────────────────────────────────────────────
 

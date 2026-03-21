@@ -45,35 +45,52 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 try:
     import pytest
 except ImportError:
+
     class _PytestShim:
         class approx:
-            def __init__(self, expected, **kw): self.expected = expected; self.kw = kw
+            def __init__(self, expected, **kw):
+                self.expected = expected
+                self.kw = kw
+
             def __eq__(self, other):
-                abs_tol = self.kw.get('abs', 1e-6)
+                abs_tol = self.kw.get("abs", 1e-6)
                 return abs(other - self.expected) <= abs_tol
-            def __repr__(self): return f"approx({self.expected})"
+
+            def __repr__(self):
+                return f"approx({self.expected})"
+
         @staticmethod
         def raises(exc, match=None):
-            import re, contextlib
+            import re
+
             class _Raises:
-                def __enter__(self): return self
+                def __enter__(self):
+                    return self
+
                 def __exit__(self, tp, val, tb):
-                    if tp is None: raise AssertionError(f"Expected {exc} but no exception raised")
-                    if not issubclass(tp, exc): return False
-                    if match and not re.search(match, str(val)): raise AssertionError(f"Pattern {match!r} not found in {val!r}")
+                    if tp is None:
+                        raise AssertionError(f"Expected {exc} but no exception raised")
+                    if not issubclass(tp, exc):
+                        return False
+                    if match and not re.search(match, str(val)):
+                        raise AssertionError(f"Pattern {match!r} not found in {val!r}")
                     return True
+
             return _Raises()
+
         @staticmethod
         def fixture(fn=None, **kw):
-            if fn: return fn
+            if fn:
+                return fn
             return lambda f: f
-    pytest = _PytestShim()
 
+    pytest = _PytestShim()
 
 
 # ════════════════════════════════════════════════════════════════════
 # Shared helpers
 # ════════════════════════════════════════════════════════════════════
+
 
 def _global(tmp_path, **kw):
     return {"backup_root": str(tmp_path / "backups"), "compress": False, **kw}
@@ -102,11 +119,11 @@ def _make_yaml(tmp_path: Path, **overrides) -> Path:
     cfg = {
         "version": 1,
         "global": {
-            "backup_root":    str(tmp_path / "backups"),
+            "backup_root": str(tmp_path / "backups"),
             "retention_days": 7,
-            "compress":       False,
-            "log_level":      "WARNING",
-            "db_path":        str(tmp_path / "pybackup.db"),   # always safe path
+            "compress": False,
+            "log_level": "WARNING",
+            "db_path": str(tmp_path / "pybackup.db"),  # always safe path
             **overrides.pop("global", {}),
         },
         **overrides,
@@ -119,6 +136,7 @@ def _make_yaml(tmp_path: Path, **overrides) -> Path:
 def _run_cli(*args):
     from click.testing import CliRunner
     from pybackup.cli import main
+
     try:
         r = CliRunner(mix_stderr=False)
     except TypeError:
@@ -131,19 +149,23 @@ def _run_cli(*args):
 # 1. Exceptions
 # ════════════════════════════════════════════════════════════════════
 
+
 class TestExceptions:
     def test_str_with_details(self):
         from pybackup.utils.exceptions import BackupError
+
         e = BackupError("oops", details={"key": "val"})
         assert "oops" in str(e)
         assert "key" in str(e)
 
     def test_str_without_details(self):
         from pybackup.utils.exceptions import ConfigError
+
         assert str(ConfigError("bad")) == "bad"
 
     def test_to_dict(self):
         from pybackup.utils.exceptions import BackupError
+
         d = BackupError("fail", details={"x": 1}).to_dict()
         assert d["error"] == "BackupError"
         assert d["message"] == "fail"
@@ -151,20 +173,37 @@ class TestExceptions:
 
     def test_hierarchy(self):
         from pybackup.utils.exceptions import (
-            PyBackupError, ConfigError, BackupError, EngineError,
-            SecurityError, ManifestError, VerificationError,
-            DatabaseError, ServerError,
+            PyBackupError,
+            ConfigError,
+            BackupError,
+            EngineError,
+            SecurityError,
+            ManifestError,
+            VerificationError,
+            DatabaseError,
+            ServerError,
         )
-        for cls in (ConfigError, BackupError, EngineError, SecurityError,
-                    ManifestError, VerificationError, DatabaseError, ServerError):
+
+        for cls in (
+            ConfigError,
+            BackupError,
+            EngineError,
+            SecurityError,
+            ManifestError,
+            VerificationError,
+            DatabaseError,
+            ServerError,
+        ):
             assert issubclass(cls, PyBackupError)
 
     def test_details_none_by_default(self):
         from pybackup.utils.exceptions import EngineError
+
         assert EngineError("x").details is None
 
     def test_catch_as_base(self):
         from pybackup.utils.exceptions import PyBackupError, ConfigError
+
         with pytest.raises(PyBackupError):
             raise ConfigError("caught as base")
 
@@ -173,45 +212,55 @@ class TestExceptions:
 # 2. Security helpers
 # ════════════════════════════════════════════════════════════════════
 
+
 class TestSecurity:
     def test_mask_long(self):
         from pybackup.utils.security import mask_secret
+
         assert mask_secret("supersecret") == "*********et"
 
     def test_mask_short(self):
         from pybackup.utils.security import mask_secret
+
         assert mask_secret("ab") == "**"
 
     def test_mask_none(self):
         from pybackup.utils.security import mask_secret
+
         assert mask_secret(None) == "******"
 
     def test_mask_show_last(self):
         from pybackup.utils.security import mask_secret
+
         assert mask_secret("password", show_last=4) == "****word"
 
     def test_get_secret_plain(self):
         from pybackup.utils.security import get_secret
+
         assert get_secret("mypassword") == "mypassword"
 
     def test_get_secret_env_var(self, monkeypatch):
         from pybackup.utils.security import get_secret
+
         monkeypatch.setenv("_PB_TEST_SECRET", "resolved")
         assert get_secret("_PB_TEST_SECRET") == "resolved"
 
     def test_get_secret_dollar_syntax(self, monkeypatch):
         from pybackup.utils.security import get_secret
+
         monkeypatch.setenv("_PB_PW", "pw123")
         assert get_secret("${_PB_PW}") == "pw123"
 
     def test_get_secret_required_missing(self):
         from pybackup.utils.security import get_secret
         from pybackup.utils.exceptions import SecurityError
+
         with pytest.raises(SecurityError):
             get_secret(None, required=True, name="DB_PASS")
 
     def test_get_secret_optional_none(self):
         from pybackup.utils.security import get_secret
+
         assert get_secret(None) is None
 
 
@@ -219,9 +268,11 @@ class TestSecurity:
 # 3. Config loader
 # ════════════════════════════════════════════════════════════════════
 
+
 class TestConfig:
     def test_valid(self, tmp_path):
         from pybackup.config.loader import load_config
+
         p = _make_yaml(tmp_path)
         cfg = load_config(str(p))
         assert cfg["version"] == 1
@@ -230,12 +281,14 @@ class TestConfig:
     def test_missing_file(self, tmp_path):
         from pybackup.config.loader import load_config
         from pybackup.utils.exceptions import ConfigError
+
         with pytest.raises(ConfigError, match="not found"):
             load_config(str(tmp_path / "ghost.yaml"))
 
     def test_missing_version(self, tmp_path):
         from pybackup.config.loader import load_config
         from pybackup.utils.exceptions import ConfigError
+
         p = tmp_path / "c.yaml"
         p.write_text(yaml.dump({"global": {"backup_root": str(tmp_path)}}))
         with pytest.raises(ConfigError, match="version"):
@@ -244,6 +297,7 @@ class TestConfig:
     def test_missing_global(self, tmp_path):
         from pybackup.config.loader import load_config
         from pybackup.utils.exceptions import ConfigError
+
         p = tmp_path / "c.yaml"
         p.write_text(yaml.dump({"version": 1}))
         with pytest.raises(ConfigError, match="global"):
@@ -252,6 +306,7 @@ class TestConfig:
     def test_missing_backup_root(self, tmp_path):
         from pybackup.config.loader import load_config
         from pybackup.utils.exceptions import ConfigError
+
         p = tmp_path / "c.yaml"
         p.write_text(yaml.dump({"version": 1, "global": {"retention_days": 7}}))
         with pytest.raises(ConfigError, match="backup_root"):
@@ -260,15 +315,19 @@ class TestConfig:
     def test_retention_must_be_int(self, tmp_path):
         from pybackup.config.loader import load_config
         from pybackup.utils.exceptions import ConfigError
+
         p = tmp_path / "c.yaml"
-        p.write_text(yaml.dump({"version": 1, "global": {
-            "backup_root": str(tmp_path), "retention_days": "seven"
-        }}))
+        p.write_text(
+            yaml.dump(
+                {"version": 1, "global": {"backup_root": str(tmp_path), "retention_days": "seven"}}
+            )
+        )
         with pytest.raises(ConfigError, match="integer"):
             load_config(str(p))
 
     def test_env_expansion(self, tmp_path, monkeypatch):
         from pybackup.config.loader import load_config
+
         monkeypatch.setenv("_PB_ROOT", "/env/backups")
         p = tmp_path / "c.yaml"
         p.write_text("version: 1\nglobal:\n  backup_root: ${_PB_ROOT}\n")
@@ -278,6 +337,7 @@ class TestConfig:
     def test_invalid_yaml(self, tmp_path):
         from pybackup.config.loader import load_config
         from pybackup.utils.exceptions import ConfigError
+
         p = tmp_path / "c.yaml"
         p.write_text("version: 1\nglobal: {unclosed: [")
         with pytest.raises(ConfigError):
@@ -286,12 +346,17 @@ class TestConfig:
     def test_jobs_must_be_list(self, tmp_path):
         from pybackup.config.loader import load_config
         from pybackup.utils.exceptions import ConfigError
+
         p = tmp_path / "c.yaml"
-        p.write_text(yaml.dump({
-            "version": 1,
-            "global": {"backup_root": str(tmp_path)},
-            "files": {"enabled": True, "jobs": "not-a-list"},
-        }))
+        p.write_text(
+            yaml.dump(
+                {
+                    "version": 1,
+                    "global": {"backup_root": str(tmp_path)},
+                    "files": {"enabled": True, "jobs": "not-a-list"},
+                }
+            )
+        )
         with pytest.raises(ConfigError, match="list"):
             load_config(str(p))
 
@@ -300,9 +365,11 @@ class TestConfig:
 # 4. Backup verifier
 # ════════════════════════════════════════════════════════════════════
 
+
 class TestVerifier:
     def test_generate_and_verify(self, tmp_path):
         from pybackup.engine.verify import BackupVerifier
+
         f = tmp_path / "b.dump"
         f.write_bytes(b"backup data " * 1000)
         v = BackupVerifier("sha256")
@@ -312,6 +379,7 @@ class TestVerifier:
     def test_mismatch_raises(self, tmp_path):
         from pybackup.engine.verify import BackupVerifier
         from pybackup.utils.exceptions import VerificationError
+
         f = tmp_path / "b.dump"
         f.write_bytes(b"data")
         with pytest.raises(VerificationError, match="mismatch"):
@@ -320,17 +388,20 @@ class TestVerifier:
     def test_missing_file_raises(self):
         from pybackup.engine.verify import BackupVerifier
         from pybackup.utils.exceptions import VerificationError
+
         with pytest.raises(VerificationError, match="not found"):
             BackupVerifier("sha256").verify_file("/ghost/file.dump", "abc")
 
     def test_unsupported_algo_raises(self):
         from pybackup.engine.verify import BackupVerifier
         from pybackup.utils.exceptions import VerificationError
+
         with pytest.raises(VerificationError, match="Unsupported"):
             BackupVerifier("fake_algo_xyz")
 
     def test_sha512(self, tmp_path):
         from pybackup.engine.verify import BackupVerifier
+
         f = tmp_path / "f.bin"
         f.write_bytes(os.urandom(1024))
         v = BackupVerifier("sha512")
@@ -340,6 +411,7 @@ class TestVerifier:
 
     def test_write_sidecar(self, tmp_path):
         from pybackup.engine.verify import BackupVerifier
+
         f = tmp_path / "backup.tar.gz"
         f.write_bytes(b"archive")
         sidecar = BackupVerifier("sha256").write_checksum_file(str(f))
@@ -351,9 +423,11 @@ class TestVerifier:
 # 5. Backup manifest
 # ════════════════════════════════════════════════════════════════════
 
+
 class TestManifest:
     def test_create_and_load(self, tmp_path):
         from pybackup.engine.manifest import BackupManifest
+
         m = BackupManifest(str(tmp_path))
         files = [{"path": "/backups/db.dump", "size": 1024}]
         p = m.create("postgres", "prod", files, extra={"host": "localhost"})
@@ -366,18 +440,21 @@ class TestManifest:
     def test_unsupported_format(self, tmp_path):
         from pybackup.engine.manifest import BackupManifest
         from pybackup.utils.exceptions import ManifestError
+
         with pytest.raises(ManifestError, match="Unsupported"):
             BackupManifest(str(tmp_path), fmt="xml")
 
     def test_load_missing(self, tmp_path):
         from pybackup.engine.manifest import BackupManifest
         from pybackup.utils.exceptions import ManifestError
+
         m = BackupManifest(str(tmp_path))
         with pytest.raises(ManifestError, match="not found"):
             m.load(str(tmp_path / "ghost.json"))
 
     def test_empty_files_list(self, tmp_path):
         from pybackup.engine.manifest import BackupManifest
+
         m = BackupManifest(str(tmp_path))
         p = m.create("files", "job", [])
         data = m.load(str(p))
@@ -389,47 +466,55 @@ class TestManifest:
 # 6. Files engine
 # ════════════════════════════════════════════════════════════════════
 
+
 def _files_eng(src, out, compress=False, exclude=None, tmp=None):
     from pybackup.engine.files import FilesBackupEngine
+
     return FilesBackupEngine(
         "j",
-        {"source": str(src), "output": str(out),
-         "compress": compress, "exclude": exclude or []},
+        {"source": str(src), "output": str(out), "compress": compress, "exclude": exclude or []},
         {"backup_root": str(tmp or out), "compress": compress},
     )
 
 
 class TestFilesEngine:
     def test_copy_files_and_dirs(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
+        s = tmp_path / "s"
+        s.mkdir()
         (s / "a.txt").write_text("hello")
-        (s / "sub").mkdir(); (s / "sub" / "b.txt").write_text("world")
+        (s / "sub").mkdir()
+        (s / "sub" / "b.txt").write_text("world")
         r = _files_eng(s, tmp_path / "o").run()
         assert (r / "a.txt").read_text() == "hello"
         assert (r / "sub" / "b.txt").exists()
 
     def test_content_preserved(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
+        s = tmp_path / "s"
+        s.mkdir()
         content = "line1\nñéü\n"
         (s / "f.txt").write_text(content, encoding="utf-8")
         r = _files_eng(s, tmp_path / "o").run()
         assert (r / "f.txt").read_text(encoding="utf-8") == content
 
     def test_empty_source(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
+        s = tmp_path / "s"
+        s.mkdir()
         r = _files_eng(s, tmp_path / "o").run()
         assert r.exists()
         assert list(r.iterdir()) == []
 
     def test_exclude_by_extension(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
-        (s / "app.py").write_text("x"); (s / "x.log").write_text("l")
+        s = tmp_path / "s"
+        s.mkdir()
+        (s / "app.py").write_text("x")
+        (s / "x.log").write_text("l")
         r = _files_eng(s, tmp_path / "o", exclude=["*.log"]).run()
         assert (r / "app.py").exists()
         assert not (r / "x.log").exists()
 
     def test_exclude_multiple_patterns(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
+        s = tmp_path / "s"
+        s.mkdir()
         (s / "keep.py").write_text("x")
         (s / "drop.log").write_text("l")
         (s / "drop.tmp").write_text("t")
@@ -439,7 +524,8 @@ class TestFilesEngine:
         assert not (r / "drop.tmp").exists()
 
     def test_exclude_directory(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
+        s = tmp_path / "s"
+        s.mkdir()
         (s / "app.py").write_text("x")
         (s / "__pycache__").mkdir()
         (s / "__pycache__" / "x.pyc").write_bytes(b"\x00")
@@ -448,7 +534,8 @@ class TestFilesEngine:
         assert not (r / "__pycache__").exists()
 
     def test_exclude_nested(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
+        s = tmp_path / "s"
+        s.mkdir()
         (s / "a" / "b").mkdir(parents=True)
         (s / "a" / "b" / "deep.log").write_text("l")
         (s / "a" / "keep.txt").write_text("k")
@@ -457,23 +544,29 @@ class TestFilesEngine:
         assert not (r / "a" / "b" / "deep.log").exists()
 
     def test_compress_produces_tar_gz(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir(); (s / "d.txt").write_text("data")
+        s = tmp_path / "s"
+        s.mkdir()
+        (s / "d.txt").write_text("data")
         r = _files_eng(s, tmp_path / "o", compress=True).run()
         assert r.suffix == ".gz"
         assert tarfile.is_tarfile(str(r))
 
     def test_compress_valid_archive(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
+        s = tmp_path / "s"
+        s.mkdir()
         (s / "readme.txt").write_text("content")
-        (s / "sub").mkdir(); (s / "sub" / "b.txt").write_text("sub")
+        (s / "sub").mkdir()
+        (s / "sub" / "b.txt").write_text("sub")
         r = _files_eng(s, tmp_path / "o", compress=True).run()
         with tarfile.open(str(r), "r:gz") as tf:
             names = tf.getnames()
         assert any("readme.txt" in n for n in names)
 
     def test_compress_respects_excludes(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
-        (s / "keep.py").write_text("code"); (s / "drop.log").write_text("log")
+        s = tmp_path / "s"
+        s.mkdir()
+        (s / "keep.py").write_text("code")
+        (s / "drop.log").write_text("log")
         r = _files_eng(s, tmp_path / "o", compress=True, exclude=["*.log"]).run()
         with tarfile.open(str(r), "r:gz") as tf:
             names = tf.getnames()
@@ -481,21 +574,25 @@ class TestFilesEngine:
         assert not any("drop.log" in n for n in names)
 
     def test_unicode_filenames(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
+        s = tmp_path / "s"
+        s.mkdir()
         (s / "données.txt").write_text("fr")
         (s / "日本語.txt").write_text("jp")
         r = _files_eng(s, tmp_path / "o").run()
         assert len(list(r.iterdir())) == 2
 
     def test_binary_files(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir()
+        s = tmp_path / "s"
+        s.mkdir()
         data = bytes(range(256)) * 100
         (s / "bin.bin").write_bytes(data)
         r = _files_eng(s, tmp_path / "o").run()
         assert (r / "bin.bin").read_bytes() == data
 
     def test_execute_returns_success_dict(self, tmp_path):
-        s = tmp_path / "s"; s.mkdir(); (s / "f.txt").write_text("x")
+        s = tmp_path / "s"
+        s.mkdir()
+        (s / "f.txt").write_text("x")
         result = _files_eng(s, tmp_path / "o").execute()
         assert result["status"] == "success"
         assert result["output_path"] is not None
@@ -504,16 +601,19 @@ class TestFilesEngine:
     def test_missing_source_key(self, tmp_path):
         from pybackup.engine.files import FilesBackupEngine
         from pybackup.utils.exceptions import BackupError
+
         with pytest.raises(BackupError, match="source"):
             FilesBackupEngine("j", {}, {"backup_root": str(tmp_path)}).run()
 
     def test_nonexistent_source(self, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         with pytest.raises(BackupError, match="does not exist"):
             _files_eng(tmp_path / "ghost", tmp_path / "o").run()
 
     def test_error_has_details(self, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         try:
             _files_eng(tmp_path / "ghost", tmp_path / "o").run()
         except BackupError as exc:
@@ -524,11 +624,18 @@ class TestFilesEngine:
 # 7. MongoDB engine
 # ════════════════════════════════════════════════════════════════════
 
+
 def _mongo_eng(tmp_path, **kw):
     from pybackup.engine.mongo import MongoBackupEngine
-    d = dict(host="localhost", port=27017, username="admin",
-             password="secret", auth_db="admin",
-             output=str(tmp_path / "out"))
+
+    d = dict(
+        host="localhost",
+        port=27017,
+        username="admin",
+        password="secret",
+        auth_db="admin",
+        output=str(tmp_path / "out"),
+    )
     d.update(kw)
     return MongoBackupEngine("mj", d, _global(tmp_path))
 
@@ -538,7 +645,8 @@ class TestMongoEngine:
     def test_success_returns_path(self, mr, tmp_path):
         mr.return_value = _proc_ok()
         r = _mongo_eng(tmp_path).run()
-        assert isinstance(r, Path); assert mr.call_count == 1
+        assert isinstance(r, Path)
+        assert mr.call_count == 1
 
     @patch("subprocess.run")
     def test_host_in_command(self, mr, tmp_path):
@@ -610,6 +718,7 @@ class TestMongoEngine:
     @patch("subprocess.run")
     def test_nonzero_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = subprocess.CalledProcessError(1, "mongodump", stderr="auth failed")
         with pytest.raises(BackupError):
             _mongo_eng(tmp_path).run()
@@ -617,6 +726,7 @@ class TestMongoEngine:
     @patch("subprocess.run")
     def test_stderr_in_details(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = subprocess.CalledProcessError(1, "mongodump", stderr="SASL fail")
         try:
             _mongo_eng(tmp_path).run()
@@ -626,6 +736,7 @@ class TestMongoEngine:
     @patch("subprocess.run")
     def test_timeout_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = subprocess.TimeoutExpired("mongodump", 3600)
         with pytest.raises(BackupError, match="timed out"):
             _mongo_eng(tmp_path).run()
@@ -633,6 +744,7 @@ class TestMongoEngine:
     @patch("subprocess.run")
     def test_not_found_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = FileNotFoundError()
         with pytest.raises(BackupError, match="not found"):
             _mongo_eng(tmp_path).run()
@@ -642,11 +754,20 @@ class TestMongoEngine:
 # 8. PostgreSQL engine
 # ════════════════════════════════════════════════════════════════════
 
+
 def _pg_eng(tmp_path, **kw):
     from pybackup.engine.postgres import PostgresBackupEngine
-    d = dict(host="localhost", port=5432, database="testdb",
-             username="bkp", password="pgpw", format="custom",
-             compress=False, output=str(tmp_path / "out"))
+
+    d = dict(
+        host="localhost",
+        port=5432,
+        database="testdb",
+        username="bkp",
+        password="pgpw",
+        format="custom",
+        compress=False,
+        output=str(tmp_path / "out"),
+    )
     d.update(kw)
     return PostgresBackupEngine("pg", d, _global(tmp_path))
 
@@ -713,32 +834,38 @@ class TestPostgresEngine:
     @patch("subprocess.run")
     def test_gzip_failure_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         def side(cmd, **kw):
             if "gzip" in cmd:
                 raise subprocess.CalledProcessError(1, "gzip", stderr=b"no space")
             return _proc_ok()
+
         mr.side_effect = side
         with pytest.raises(BackupError, match="compression"):
             _pg_eng(tmp_path, format="plain", compress=True).run()
 
     def test_missing_database_raises(self, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         with pytest.raises(BackupError, match="database"):
             _pg_eng(tmp_path, database="")
 
     def test_missing_username_raises(self, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         with pytest.raises(BackupError, match="username"):
             _pg_eng(tmp_path, username="")
 
     def test_bad_format_raises(self, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         with pytest.raises(BackupError, match="Unsupported"):
             _pg_eng(tmp_path, format="xml")
 
     @patch("subprocess.run")
     def test_timeout_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = subprocess.TimeoutExpired("pg_dump", 3600)
         with pytest.raises(BackupError, match="timed out"):
             _pg_eng(tmp_path).run()
@@ -746,6 +873,7 @@ class TestPostgresEngine:
     @patch("subprocess.run")
     def test_not_found_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = FileNotFoundError()
         with pytest.raises(BackupError, match="not found"):
             _pg_eng(tmp_path).run()
@@ -762,12 +890,20 @@ class TestPostgresEngine:
 # 9. MySQL engine
 # ════════════════════════════════════════════════════════════════════
 
+
 def _mysql_eng(tmp_path, **kw):
     from pybackup.engine.mysql import MySQLBackupEngine
-    d = dict(host="localhost", port=3306, database="appdb",
-             username="bkp", password="mypw",
-             single_transaction=True, compress=False,
-             output=str(tmp_path / "out"))
+
+    d = dict(
+        host="localhost",
+        port=3306,
+        database="appdb",
+        username="bkp",
+        password="mypw",
+        single_transaction=True,
+        compress=False,
+        output=str(tmp_path / "out"),
+    )
     d.update(kw)
     return MySQLBackupEngine("my", d, _global(tmp_path))
 
@@ -819,17 +955,20 @@ class TestMySQLEngine:
 
     def test_missing_database_raises(self, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         with pytest.raises(BackupError, match="database"):
             _mysql_eng(tmp_path, database="")
 
     def test_missing_username_raises(self, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         with pytest.raises(BackupError, match="username"):
             _mysql_eng(tmp_path, username="")
 
     @patch("subprocess.run")
     def test_timeout_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = subprocess.TimeoutExpired("mysqldump", 3600)
         with pytest.raises(BackupError, match="timed out"):
             _mysql_eng(tmp_path).run()
@@ -837,6 +976,7 @@ class TestMySQLEngine:
     @patch("subprocess.run")
     def test_not_found_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = FileNotFoundError()
         with pytest.raises(BackupError, match="not found"):
             _mysql_eng(tmp_path).run()
@@ -844,6 +984,7 @@ class TestMySQLEngine:
     @patch("subprocess.run")
     def test_nonzero_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = subprocess.CalledProcessError(1, "mysqldump", stderr="access denied")
         with pytest.raises(BackupError):
             _mysql_eng(tmp_path).run()
@@ -853,11 +994,19 @@ class TestMySQLEngine:
 # 10. MSSQL engine
 # ════════════════════════════════════════════════════════════════════
 
+
 def _mssql_eng(tmp_path, **kw):
     from pybackup.engine.mssql import MSSQLBackupEngine
-    d = dict(host="localhost", port=1433, database="AppDB",
-             username="sa", password="mssqlpw",
-             encrypt=False, output=str(tmp_path / "out"))
+
+    d = dict(
+        host="localhost",
+        port=1433,
+        database="AppDB",
+        username="sa",
+        password="mssqlpw",
+        encrypt=False,
+        output=str(tmp_path / "out"),
+    )
     d.update(kw)
     return MSSQLBackupEngine("ms", d, _global(tmp_path))
 
@@ -904,17 +1053,20 @@ class TestMSSQLEngine:
 
     def test_missing_database_raises(self, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         with pytest.raises(BackupError, match="database"):
             _mssql_eng(tmp_path, database="")
 
     def test_missing_username_raises(self, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         with pytest.raises(BackupError, match="username"):
             _mssql_eng(tmp_path, username="")
 
     @patch("subprocess.run")
     def test_timeout_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = subprocess.TimeoutExpired("sqlcmd", 7200)
         with pytest.raises(BackupError, match="timed out"):
             _mssql_eng(tmp_path).run()
@@ -922,6 +1074,7 @@ class TestMSSQLEngine:
     @patch("subprocess.run")
     def test_not_found_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = FileNotFoundError()
         with pytest.raises(BackupError, match="not found"):
             _mssql_eng(tmp_path).run()
@@ -929,6 +1082,7 @@ class TestMSSQLEngine:
     @patch("subprocess.run")
     def test_nonzero_raises(self, mr, tmp_path):
         from pybackup.utils.exceptions import BackupError
+
         mr.side_effect = subprocess.CalledProcessError(1, "sqlcmd", stderr="Login failed")
         with pytest.raises(BackupError):
             _mssql_eng(tmp_path).run()
@@ -944,9 +1098,11 @@ class TestMSSQLEngine:
 # 11. Database (SQLite)
 # ════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def db():
     from pybackup.db.database import Database
+
     return Database(":memory:")
 
 
@@ -970,14 +1126,16 @@ class TestDatabase:
 
     def test_filter_by_status(self, db):
         for s in ["success", "failed", "success", "crashed"]:
-            rid = db.create_run("j", "files"); db.finish_run(rid, status=s)
+            rid = db.create_run("j", "files")
+            db.finish_run(rid, status=s)
         successes = db.list_runs(status="success")
         assert all(r["status"] == "success" for r in successes)
         assert len(successes) == 2
 
     def test_filter_by_job(self, db):
         for name in ["alpha", "beta", "alpha"]:
-            rid = db.create_run(name, "files"); db.finish_run(rid, status="success")
+            rid = db.create_run(name, "files")
+            db.finish_run(rid, status="success")
         alphas = db.list_runs(job_name="alpha")
         assert all(r["job_name"] == "alpha" for r in alphas)
         assert len(alphas) == 2
@@ -1000,7 +1158,8 @@ class TestDatabase:
 
     def test_count_runs(self, db):
         for _ in range(5):
-            rid = db.create_run("j", "files"); db.finish_run(rid, status="success")
+            rid = db.create_run("j", "files")
+            db.finish_run(rid, status="success")
         assert db.count_runs() == 5
         assert db.count_runs(status="failed") == 0
 
@@ -1014,10 +1173,16 @@ class TestDatabase:
         assert db.get_setting("nope", "fallback") == "fallback"
 
     def test_stats(self, db):
-        data = [("success", "files"), ("failed", "postgres"),
-                ("success", "postgres"), ("crashed", "mysql"), ("success", "mongo")]
+        data = [
+            ("success", "files"),
+            ("failed", "postgres"),
+            ("success", "postgres"),
+            ("crashed", "mysql"),
+            ("success", "mongo"),
+        ]
         for s, e in data:
-            rid = db.create_run("j", e); db.finish_run(rid, status=s)
+            rid = db.create_run("j", e)
+            db.finish_run(rid, status=s)
         stats = db.stats()
         assert stats["total"] == 5
         assert stats["success"] == 3
@@ -1033,6 +1198,7 @@ class TestDatabase:
 
     def test_file_db_created(self, tmp_path):
         from pybackup.db.database import Database
+
         db_path = tmp_path / "test.db"
         db2 = Database(str(db_path))
         rid = db2.create_run("j", "files")
@@ -1045,28 +1211,39 @@ class TestDatabase:
 # 12. HTTP router
 # ════════════════════════════════════════════════════════════════════
 
+
 class TestRouter:
     def _router(self):
         from pybackup.server.httpserver import Router
+
         return Router()
 
     def test_exact_match(self):
         r = self._router()
-        fn = lambda req, db: (200, {}, b"ok")
+
+        def fn(req, db):
+            return (200, {}, b"ok")
+
         r.add("GET", "/api/stats", fn)
         matched, params = r.match("GET", "/api/stats")
         assert matched is fn and params == {}
 
     def test_param_match(self):
         r = self._router()
-        fn = lambda req, db: (200, {}, b"ok")
+
+        def fn(req, db):
+            return (200, {}, b"ok")
+
         r.add("GET", "/api/runs/:id", fn)
         matched, params = r.match("GET", "/api/runs/42")
         assert matched is fn and params["id"] == "42"
 
     def test_delete_with_param(self):
         r = self._router()
-        fn = lambda req, db: (200, {}, b"del")
+
+        def fn(req, db):
+            return (200, {}, b"del")
+
         r.add("DELETE", "/api/runs/:id", fn)
         matched, params = r.match("DELETE", "/api/runs/7")
         assert matched is fn and params["id"] == "7"
@@ -1084,13 +1261,18 @@ class TestRouter:
 
     def test_exact_and_param_same_prefix(self):
         r = self._router()
-        fn_list   = lambda req, db: (200, {}, b"list")
-        fn_detail = lambda req, db: (200, {}, b"detail")
-        r.add("GET", "/api/runs",     fn_list)
+
+        def fn_list(req, db):
+            return (200, {}, b"list")
+
+        def fn_detail(req, db):
+            return (200, {}, b"detail")
+
+        r.add("GET", "/api/runs", fn_list)
         r.add("GET", "/api/runs/:id", fn_detail)
-        matched_list,   _  = r.match("GET", "/api/runs")
-        matched_detail, p  = r.match("GET", "/api/runs/5")
-        assert matched_list   is fn_list
+        matched_list, _ = r.match("GET", "/api/runs")
+        matched_detail, p = r.match("GET", "/api/runs/5")
+        assert matched_list is fn_list
         assert matched_detail is fn_detail
         assert p["id"] == "5"
 
@@ -1105,13 +1287,16 @@ class TestRouter:
 # 13. REST API handlers (integration)
 # ════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def router_and_db():
     from pybackup.db.database import Database
     from pybackup.server.httpserver import Router, PyBackupHandler
     from pybackup.server.handlers import register_routes
     from pybackup.auth import UserDB, sessions
-    import tempfile, os
+    import os
+    import tempfile
+
     tmp = tempfile.mkdtemp()
     db_path = os.path.join(tmp, "test.db")
     db = Database(db_path)
@@ -1126,6 +1311,7 @@ def router_and_db():
 
 def _call(router_db_tok, method, path, body=b"", token=None):
     from pybackup.server.httpserver import Request
+
     if isinstance(router_db_tok, tuple) and len(router_db_tok) == 3:
         router, db, auto_tok = router_db_tok
         if token is None:
@@ -1135,7 +1321,9 @@ def _call(router_db_tok, method, path, body=b"", token=None):
     fn, params = router.match(method, path)
     assert fn is not None, f"No route: {method} {path}"
     headers = {"Authorization": f"Bearer {token}"} if token else {}
-    r = Request(method, path, {}, type("H", (), {"get": lambda self,k,d="": headers.get(k,d)})(), body)
+    r = Request(
+        method, path, {}, type("H", (), {"get": lambda self, k, d="": headers.get(k, d)})(), body
+    )
     r.path_params = params
     status, _, resp = fn(r, db)
     return status, json.loads(resp)
@@ -1151,21 +1339,24 @@ class TestAPIHandlers:
 
     def test_create_run(self, router_and_db):
         router, db, tok = router_and_db
-        body = json.dumps({"job_name": "ci", "engine": "files",
-                           "status": "success", "output_path": "/ci/bk"}).encode()
+        body = json.dumps(
+            {"job_name": "ci", "engine": "files", "status": "success", "output_path": "/ci/bk"}
+        ).encode()
         s, d = _call(router_and_db, "POST", "/api/runs", body)
         assert s == 201 and d["job_name"] == "ci"
 
     def test_list_runs(self, router_and_db):
         router, db, tok = router_and_db
         for i in range(3):
-            rid = db.create_run(f"j{i}", "postgres"); db.finish_run(rid, status="success")
+            rid = db.create_run(f"j{i}", "postgres")
+            db.finish_run(rid, status="success")
         s, d = _call(router_and_db, "GET", "/api/runs")
         assert s == 200 and d["total"] == 3
 
     def test_get_run_by_id(self, router_and_db):
         router, db, tok = router_and_db
-        rid = db.create_run("myjob", "mysql"); db.finish_run(rid, status="success")
+        rid = db.create_run("myjob", "mysql")
+        db.finish_run(rid, status="success")
         s, d = _call(router_and_db, "GET", f"/api/runs/{rid}")
         assert s == 200 and d["job_name"] == "myjob"
 
@@ -1175,7 +1366,8 @@ class TestAPIHandlers:
 
     def test_delete_run(self, router_and_db):
         router, db, tok = router_and_db
-        rid = db.create_run("j", "postgres"); db.finish_run(rid, status="success")
+        rid = db.create_run("j", "postgres")
+        db.finish_run(rid, status="success")
         s, d = _call(router_and_db, "DELETE", f"/api/runs/{rid}")
         assert s == 200 and d["deleted"] == rid
         assert db.get_run(rid) is None
@@ -1193,14 +1385,16 @@ class TestAPIHandlers:
     def test_stats_accuracy(self, router_and_db):
         router, db, tok = router_and_db
         for st in ["success", "success", "failed"]:
-            rid = db.create_run("j", "files"); db.finish_run(rid, status=st)
+            rid = db.create_run("j", "files")
+            db.finish_run(rid, status=st)
         s, d = _call(router_and_db, "GET", "/api/stats")
         assert d["total"] == 3 and d["success"] == 2 and d["failed"] == 1
         assert d["success_rate"] == pytest.approx(66.7, abs=0.1)
 
     def test_run_includes_files(self, router_and_db):
         router, db, tok = router_and_db
-        rid = db.create_run("j", "postgres"); db.finish_run(rid, status="success")
+        rid = db.create_run("j", "postgres")
+        db.finish_run(rid, status="success")
         db.add_file(rid, "/b/prod.dump", file_size=1024)
         s, d = _call(router_and_db, "GET", f"/api/runs/{rid}")
         assert s == 200 and len(d["files"]) == 1
@@ -1248,7 +1442,8 @@ class TestCLI:
         assert code != 0
 
     def test_config_check_invalid_yaml(self, tmp_path):
-        p = tmp_path / "bad.yaml"; p.write_text("version: 1\nglobal: {unclosed: [")
+        p = tmp_path / "bad.yaml"
+        p.write_text("version: 1\nglobal: {unclosed: [")
         code, _ = _run_cli("config-check", "--config", str(p))
         assert code != 0
 
@@ -1259,33 +1454,45 @@ class TestCLI:
         assert code != 0
 
     def test_config_check_shows_engines(self, tmp_path):
-        src = tmp_path / "src"; src.mkdir()
-        p = _make_yaml(tmp_path, files={
-            "enabled": True,
-            "jobs": [{"name": "docs", "source": str(src)}],
-        })
+        src = tmp_path / "src"
+        src.mkdir()
+        p = _make_yaml(
+            tmp_path,
+            files={
+                "enabled": True,
+                "jobs": [{"name": "docs", "source": str(src)}],
+            },
+        )
         code, out = _run_cli("config-check", "--config", str(p))
         assert code == 0 and "files" in out and "docs" in out
 
     # ── run --dry-run ─────────────────────────────────────────────
 
     def test_dry_run_no_backup(self, tmp_path):
-        src = tmp_path / "src"; src.mkdir(); (src / "f.txt").write_text("x")
-        p = _make_yaml(tmp_path, files={
-            "enabled": True,
-            "jobs": [{"name": "t", "source": str(src),
-                      "output": str(tmp_path / "out")}],
-        })
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "f.txt").write_text("x")
+        p = _make_yaml(
+            tmp_path,
+            files={
+                "enabled": True,
+                "jobs": [{"name": "t", "source": str(src), "output": str(tmp_path / "out")}],
+            },
+        )
         code, out = _run_cli("run", "--config", str(p), "--dry-run")
         assert code == 0
         assert not (tmp_path / "out").exists()
 
     def test_dry_run_shows_job_names(self, tmp_path):
-        src = tmp_path / "src"; src.mkdir()
-        p = _make_yaml(tmp_path, files={
-            "enabled": True,
-            "jobs": [{"name": "my-files", "source": str(src)}],
-        })
+        src = tmp_path / "src"
+        src.mkdir()
+        p = _make_yaml(
+            tmp_path,
+            files={
+                "enabled": True,
+                "jobs": [{"name": "my-files", "source": str(src)}],
+            },
+        )
         code, out = _run_cli("run", "--config", str(p), "--dry-run")
         assert code == 0 and "my-files" in out
 
@@ -1297,7 +1504,8 @@ class TestCLI:
         db_path is explicitly set inside the config so the CLI never tries
         to create /var/lib/pybackup/ (which requires root in CI).
         """
-        src = tmp_path / "src"; src.mkdir()
+        src = tmp_path / "src"
+        src.mkdir()
         (src / "a.txt").write_text("hello")
         (src / "b.txt").write_text("world")
         p = _make_yaml(
@@ -1306,33 +1514,49 @@ class TestCLI:
             **{"global": {"db_path": str(tmp_path / "ci.db")}},
             files={
                 "enabled": True,
-                "jobs": [{"name": "bk", "source": str(src),
-                          "output": str(tmp_path / "out"), "compress": False}],
+                "jobs": [
+                    {
+                        "name": "bk",
+                        "source": str(src),
+                        "output": str(tmp_path / "out"),
+                        "compress": False,
+                    }
+                ],
             },
         )
         code, out = _run_cli("run", "--config", str(p))
         assert code == 0
 
     def test_run_nonexistent_source_exits_1(self, tmp_path):
-        p = _make_yaml(tmp_path, files={
-            "enabled": True,
-            "jobs": [{"name": "bad", "source": str(tmp_path / "ghost"),
-                      "output": str(tmp_path / "out")}],
-        })
+        p = _make_yaml(
+            tmp_path,
+            files={
+                "enabled": True,
+                "jobs": [
+                    {
+                        "name": "bad",
+                        "source": str(tmp_path / "ghost"),
+                        "output": str(tmp_path / "out"),
+                    }
+                ],
+            },
+        )
         code, out = _run_cli("run", "--config", str(p))
         assert code == 1
 
     # ── checksum ──────────────────────────────────────────────────
 
     def test_checksum_sha256(self, tmp_path):
-        f = tmp_path / "backup.dump"; f.write_bytes(b"data" * 500)
+        f = tmp_path / "backup.dump"
+        f.write_bytes(b"data" * 500)
         code, out = _run_cli("checksum", str(f))
         assert code == 0
         parts = out.strip().split()
         assert len(parts) == 2 and len(parts[0]) == 64
 
     def test_checksum_sha512(self, tmp_path):
-        f = tmp_path / "backup.dump"; f.write_bytes(b"data")
+        f = tmp_path / "backup.dump"
+        f.write_bytes(b"data")
         code, out = _run_cli("checksum", str(f), "--algorithm", "sha512")
         assert code == 0 and len(out.strip().split()[0]) == 128
 
@@ -1344,25 +1568,27 @@ class TestCLI:
 
     def test_verify_pass(self, tmp_path):
         from pybackup.engine.verify import BackupVerifier
-        f = tmp_path / "b.dump"; f.write_bytes(b"correct" * 200)
+
+        f = tmp_path / "b.dump"
+        f.write_bytes(b"correct" * 200)
         cs = BackupVerifier("sha256").generate_checksum(str(f))
         code, out = _run_cli("verify", str(f), "--checksum", cs)
         assert code == 0 and "verified" in out.lower()
 
     def test_verify_fail(self, tmp_path):
-        f = tmp_path / "b.dump"; f.write_bytes(b"tampered")
+        f = tmp_path / "b.dump"
+        f.write_bytes(b"tampered")
         code, out = _run_cli("verify", str(f), "--checksum", "a" * 64)
         assert code != 0
 
     def test_verify_missing_file(self, tmp_path):
-        code, _ = _run_cli("verify", str(tmp_path / "ghost.dump"),
-                           "--checksum", "a" * 64)
+        code, _ = _run_cli("verify", str(tmp_path / "ghost.dump"), "--checksum", "a" * 64)
         assert code != 0
 
     # ── serve (live HTTP smoke test) ──────────────────────────────
 
     def _start_server(self, port: int):
-        import tempfile, os
+        import os
         from pybackup.db.database import Database
         from pybackup.server.httpserver import PyBackupHandler, Router
         from pybackup.server.handlers import register_routes
@@ -1378,13 +1604,16 @@ class TestCLI:
             rid = db.create_run(f"job-{i}", "files")
             db.finish_run(rid, status="success" if i < 2 else "failed")
 
-        router = Router(); register_routes(router)
-        PyBackupHandler.router = router; PyBackupHandler.db = db
+        router = Router()
+        register_routes(router)
+        PyBackupHandler.router = router
+        PyBackupHandler.db = db
         PyBackupHandler.user_db = udb
         httpd = ThreadingHTTPServer(("127.0.0.1", port), PyBackupHandler)
         t = threading.Thread(target=httpd.serve_forever, daemon=True)
         t._httpd = httpd  # type: ignore[attr-defined]
-        t.start(); time.sleep(0.3)
+        t.start()
+        time.sleep(0.3)
         return t
 
     def test_serve_index_html(self):
@@ -1404,14 +1633,22 @@ class TestCLI:
         try:
             # Login first to get a token
             login_data = json.dumps({"username": "testadmin", "password": "Test1234!"}).encode()
-            lr = urllib.request.urlopen(urllib.request.Request(
-                f"http://127.0.0.1:{port}/api/auth/login",
-                data=login_data, headers={"Content-Type": "application/json"}), timeout=3)
+            lr = urllib.request.urlopen(
+                urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/auth/login",
+                    data=login_data,
+                    headers={"Content-Type": "application/json"},
+                ),
+                timeout=3,
+            )
             tok = json.loads(lr.read())["token"]
             # Now call stats with auth
-            r = urllib.request.urlopen(urllib.request.Request(
-                f"http://127.0.0.1:{port}/api/stats",
-                headers={"Authorization": f"Bearer {tok}"}), timeout=3)
+            r = urllib.request.urlopen(
+                urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/stats", headers={"Authorization": f"Bearer {tok}"}
+                ),
+                timeout=3,
+            )
             assert r.status == 200
             d = json.loads(r.read())
             assert d["total"] == 3

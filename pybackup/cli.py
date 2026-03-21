@@ -43,6 +43,7 @@ logger = logging.getLogger("pybackup.cli")
 
 # ─── Main group ─────────────────────────────────────────────────────
 
+
 @click.group()
 @click.version_option("2.0.0", prog_name="pybackup")
 def main() -> None:
@@ -61,19 +62,22 @@ def main() -> None:
 
 # ─── run ────────────────────────────────────────────────────────────
 
+
 @main.command()
 @click.option(
-    "--config", "-c",
+    "--config",
+    "-c",
     required=True,
     type=click.Path(exists=True, path_type=Path),
     help="Path to pybackup YAML configuration file",
 )
-@click.option("--dry-run", is_flag=True,
-              help="Validate config and print jobs — no backups executed")
+@click.option(
+    "--dry-run", is_flag=True, help="Validate config and print jobs — no backups executed"
+)
 def run(config: Path, dry_run: bool) -> None:
     """Run backup jobs defined in the configuration file."""
     try:
-        cfg        = load_config(str(config))
+        cfg = load_config(str(config))
         global_cfg = cfg.get("global", {})
         configure_logging(
             log_level=global_cfg.get("log_level", "INFO"),
@@ -87,21 +91,21 @@ def run(config: Path, dry_run: bool) -> None:
             click.secho("Dry run complete — no backups executed.", fg="cyan")
             return
 
-        from pybackup.engine.files    import FilesBackupEngine
-        from pybackup.engine.mongo    import MongoBackupEngine
+        from pybackup.engine.files import FilesBackupEngine
+        from pybackup.engine.mongo import MongoBackupEngine
         from pybackup.engine.postgres import PostgresBackupEngine
-        from pybackup.engine.mysql    import MySQLBackupEngine
-        from pybackup.engine.mssql    import MSSQLBackupEngine
-        from pybackup.db.backends     import get_database
+        from pybackup.engine.mysql import MySQLBackupEngine
+        from pybackup.engine.mssql import MSSQLBackupEngine
+        from pybackup.db.backends import get_database
 
         db = get_database(cfg)
 
         engine_map = {
-            "files":      FilesBackupEngine,
-            "mongodb":    MongoBackupEngine,
+            "files": FilesBackupEngine,
+            "mongodb": MongoBackupEngine,
             "postgresql": PostgresBackupEngine,
-            "mysql":      MySQLBackupEngine,
-            "mssql":      MSSQLBackupEngine,
+            "mysql": MySQLBackupEngine,
+            "mssql": MSSQLBackupEngine,
         }
 
         failures = []
@@ -112,11 +116,10 @@ def run(config: Path, dry_run: bool) -> None:
             jobs = engine_cfg.get("jobs") or [engine_cfg]
             for job in jobs:
                 job_name = job.get("name", engine_key)
-                run_id   = db.create_run(job_name, engine_key)
+                run_id = db.create_run(job_name, engine_key)
                 try:
                     result = EngineClass(job_name, job, global_cfg).execute()
-                    db.finish_run(run_id, status="success",
-                                  output_path=result.get("output_path"))
+                    db.finish_run(run_id, status="success", output_path=result.get("output_path"))
                     click.secho(f"  ✔ {job_name}", fg="green")
                 except PyBackupError as exc:
                     db.finish_run(run_id, status="failed", error=str(exc))
@@ -124,9 +127,7 @@ def run(config: Path, dry_run: bool) -> None:
                     failures.append(job_name)
 
         if failures:
-            click.secho(
-                f"\n{len(failures)} job(s) failed: {', '.join(failures)}", fg="red"
-            )
+            click.secho(f"\n{len(failures)} job(s) failed: {', '.join(failures)}", fg="red")
             sys.exit(1)
 
         logger.info("All backup jobs completed successfully")
@@ -143,15 +144,30 @@ def run(config: Path, dry_run: bool) -> None:
 
 # ─── serve ──────────────────────────────────────────────────────────
 
+
 @main.command()
-@click.option("--host",   default=DEFAULT_SERVER_HOST, show_default=True,
-              help="Bind address (0.0.0.0 = all interfaces)")
-@click.option("--port",   default=DEFAULT_SERVER_PORT, show_default=True,
-              type=int, help="Port number")
-@click.option("--db",     default=str(DEFAULT_DB_PATH), show_default=True,
-              help="SQLite database path (override via config database.backend)")
-@click.option("--config", "-c", type=click.Path(path_type=Path), default=None,
-              help="Optional YAML config (for log level, database backend, etc.)")
+@click.option(
+    "--host",
+    default=DEFAULT_SERVER_HOST,
+    show_default=True,
+    help="Bind address (0.0.0.0 = all interfaces)",
+)
+@click.option(
+    "--port", default=DEFAULT_SERVER_PORT, show_default=True, type=int, help="Port number"
+)
+@click.option(
+    "--db",
+    default=str(DEFAULT_DB_PATH),
+    show_default=True,
+    help="SQLite database path (override via config database.backend)",
+)
+@click.option(
+    "--config",
+    "-c",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Optional YAML config (for log level, database backend, etc.)",
+)
 def serve(host: str, port: int, db: str, config: Path | None) -> None:
     """Start the PyBackup web dashboard.
 
@@ -166,20 +182,21 @@ def serve(host: str, port: int, db: str, config: Path | None) -> None:
         log_level = "INFO"
 
         if config and config.exists():
-            full_cfg  = load_config(str(config))
+            full_cfg = load_config(str(config))
             log_level = full_cfg.get("global", {}).get("log_level", "INFO")
-            db        = full_cfg.get("global", {}).get("db_path", db)
+            db = full_cfg.get("global", {}).get("db_path", db)
 
         configure_logging(log_level)
 
-        from pybackup.db.backends      import get_database
+        from pybackup.db.backends import get_database
         from pybackup.server.httpserver import PyBackupServer
-        from pybackup.auth              import UserDB
+        from pybackup.auth import UserDB
 
         if "database" in full_cfg:
             database = get_database(full_cfg)
         else:
             from pybackup.db.database import Database
+
             database = Database(db)
 
         user_db = UserDB(db)
@@ -196,9 +213,7 @@ def serve(host: str, port: int, db: str, config: Path | None) -> None:
                 fg="yellow",
             )
         else:
-            click.secho(
-                f"  Users     : {user_db.count_admins()} admin(s)", fg="bright_black"
-            )
+            click.secho(f"  Users     : {user_db.count_admins()} admin(s)", fg="bright_black")
 
         click.secho("  Press Ctrl-C to stop.\n", fg="bright_black")
 
@@ -215,11 +230,17 @@ def serve(host: str, port: int, db: str, config: Path | None) -> None:
 
 # ─── verify ─────────────────────────────────────────────────────────
 
+
 @main.command()
 @click.argument("file_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--checksum", "-s", required=True, help="Expected checksum hex-digest")
-@click.option("--algorithm", "-a", default="sha256", show_default=True,
-              help="Hash algorithm (sha256, sha512, md5, …)")
+@click.option(
+    "--algorithm",
+    "-a",
+    default="sha256",
+    show_default=True,
+    help="Hash algorithm (sha256, sha512, md5, …)",
+)
 def verify(file_path: Path, checksum: str, algorithm: str) -> None:
     """Verify a backup file against an expected checksum.
 
@@ -232,9 +253,7 @@ def verify(file_path: Path, checksum: str, algorithm: str) -> None:
     configure_logging()
     try:
         BackupVerifier(algorithm=algorithm).verify_file(file_path, checksum)
-        click.secho(
-            f"✔ Checksum verified ({algorithm}): {file_path.name}", fg="green"
-        )
+        click.secho(f"✔ Checksum verified ({algorithm}): {file_path.name}", fg="green")
     except PyBackupError as exc:
         click.secho(f"✘ Verification failed: {exc}", fg="red", err=True)
         sys.exit(1)
@@ -242,10 +261,10 @@ def verify(file_path: Path, checksum: str, algorithm: str) -> None:
 
 # ─── checksum ───────────────────────────────────────────────────────
 
+
 @main.command()
 @click.argument("file_path", type=click.Path(exists=True, path_type=Path))
-@click.option("--algorithm", "-a", default="sha256", show_default=True,
-              help="Hash algorithm")
+@click.option("--algorithm", "-a", default="sha256", show_default=True, help="Hash algorithm")
 def checksum(file_path: Path, algorithm: str) -> None:
     """Generate and print the checksum of a backup file.
 
@@ -267,9 +286,11 @@ def checksum(file_path: Path, algorithm: str) -> None:
 
 # ─── config-check ───────────────────────────────────────────────────
 
+
 @main.command(name="config-check")
 @click.option(
-    "--config", "-c",
+    "--config",
+    "-c",
     required=True,
     type=click.Path(exists=True, path_type=Path),
 )
@@ -291,11 +312,16 @@ def config_check(config: Path) -> None:
 
 # ─── tables ─────────────────────────────────────────────────────────
 
+
 @main.command()
-@click.option("--db", default=str(DEFAULT_DB_PATH), show_default=True,
-              help="Database path")
-@click.option("--config", "-c", type=click.Path(path_type=Path), default=None,
-              help="Optional YAML config (to resolve database backend)")
+@click.option("--db", default=str(DEFAULT_DB_PATH), show_default=True, help="Database path")
+@click.option(
+    "--config",
+    "-c",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Optional YAML config (to resolve database backend)",
+)
 def tables(db: str, config: Path | None) -> None:
     """Show database tables, row counts, recent runs and users.
 
@@ -308,15 +334,17 @@ def tables(db: str, config: Path | None) -> None:
     full_cfg: dict = {}
     if config and config.exists():
         full_cfg = load_config(str(config))
-        db       = full_cfg.get("global", {}).get("db_path", db)
+        db = full_cfg.get("global", {}).get("db_path", db)
 
     configure_logging("WARNING")
 
     if "database" in full_cfg:
         from pybackup.db.backends import get_database
+
         database = get_database(full_cfg)
     else:
         from pybackup.db.database import Database
+
         database = Database(db)
 
     click.secho("\n  PyBackup — Database Info", bold=True)
@@ -328,21 +356,19 @@ def tables(db: str, config: Path | None) -> None:
     try:
         stats = database.stats()
         rows = [
-            ("backup_runs",  stats["total"]),
+            ("backup_runs", stats["total"]),
             ("backup_files", len(database.list_files(0)) if stats["total"] else 0),
-            ("settings",     0),
-            ("users",        0),
+            ("settings", 0),
+            ("users", 0),
         ]
         # Get settings count
         try:
-            from pybackup.db.database import Database as _D
-            if hasattr(database, '_backend'):
+            if hasattr(database, "_backend"):
                 import sqlite3
+
                 conn = sqlite3.connect(db)
-                rows[2] = ("settings",
-                            conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0])
-                rows[3] = ("users",
-                            conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
+                rows[2] = ("settings", conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0])
+                rows[3] = ("users", conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
                 conn.close()
         except Exception:
             pass
@@ -359,8 +385,10 @@ def tables(db: str, config: Path | None) -> None:
         click.secho(f"  Successful   : {stats['success']}", fg="green")
         click.secho(f"  Failed       : {stats['failed']}", fg="red")
         click.secho(f"  Running      : {stats['running']}", fg="blue")
-        click.secho(f"  Success rate : {stats['success_rate']}%",
-                    fg="green" if stats['success_rate'] >= 90 else "yellow")
+        click.secho(
+            f"  Success rate : {stats['success_rate']}%",
+            fg="green" if stats["success_rate"] >= 90 else "yellow",
+        )
     except Exception as exc:
         click.secho(f"  ✘ {exc}", fg="red")
 
@@ -377,8 +405,12 @@ def tables(db: str, config: Path | None) -> None:
             )
             click.secho("  " + "─" * 68, fg="bright_black")
             for r in runs:
-                color = {"success": "green", "failed": "red",
-                         "crashed": "red", "running": "blue"}.get(r["status"], "white")
+                color = {
+                    "success": "green",
+                    "failed": "red",
+                    "crashed": "red",
+                    "running": "blue",
+                }.get(r["status"], "white")
                 started = (r.get("started_at") or "")[:16].replace("T", " ")
                 click.secho(
                     f"  #{r['id']:<4} {r['job_name']:<22} {r['engine']:<14} ",
@@ -393,7 +425,8 @@ def tables(db: str, config: Path | None) -> None:
     click.secho("\n  Users", bold=True)
     try:
         from pybackup.auth import UserDB
-        udb   = UserDB(db)
+
+        udb = UserDB(db)
         users = udb.list_users()
         if not users:
             click.secho("  No users yet.", fg="bright_black")
@@ -416,26 +449,36 @@ def tables(db: str, config: Path | None) -> None:
 
 # ─── add-run ────────────────────────────────────────────────────────
 
+
 @main.command(name="add-run")
-@click.option("--job",     required=True, help="Job name")
-@click.option("--engine",  required=True,
-              type=click.Choice(
-                  ["files", "postgresql", "mongodb", "mysql", "mssql", "manual"]
-              ),
-              help="Backup engine type")
-@click.option("--status",  default="success", show_default=True,
-              type=click.Choice(["success", "failed", "crashed", "running"]),
-              help="Run status")
-@click.option("--output",  default=None, help="Output path of the backup")
-@click.option("--error",   default=None, help="Error message (for failed runs)")
-@click.option("--db",      default=str(DEFAULT_DB_PATH), show_default=True,
-              help="Database path")
-@click.option("--config", "-c", type=click.Path(path_type=Path), default=None,
-              help="Optional YAML config")
+@click.option("--job", required=True, help="Job name")
+@click.option(
+    "--engine",
+    required=True,
+    type=click.Choice(["files", "postgresql", "mongodb", "mysql", "mssql", "manual"]),
+    help="Backup engine type",
+)
+@click.option(
+    "--status",
+    default="success",
+    show_default=True,
+    type=click.Choice(["success", "failed", "crashed", "running"]),
+    help="Run status",
+)
+@click.option("--output", default=None, help="Output path of the backup")
+@click.option("--error", default=None, help="Error message (for failed runs)")
+@click.option("--db", default=str(DEFAULT_DB_PATH), show_default=True, help="Database path")
+@click.option(
+    "--config", "-c", type=click.Path(path_type=Path), default=None, help="Optional YAML config"
+)
 def add_run(
-    job: str, engine: str, status: str,
-    output: str | None, error: str | None,
-    db: str, config: Path | None,
+    job: str,
+    engine: str,
+    status: str,
+    output: str | None,
+    error: str | None,
+    db: str,
+    config: Path | None,
 ) -> None:
     """Manually add a backup run record to the database.
 
@@ -449,25 +492,26 @@ def add_run(
     full_cfg: dict = {}
     if config and config.exists():
         full_cfg = load_config(str(config))
-        db       = full_cfg.get("global", {}).get("db_path", db)
+        db = full_cfg.get("global", {}).get("db_path", db)
 
     configure_logging("WARNING")
 
     if "database" in full_cfg:
         from pybackup.db.backends import get_database
+
         database = get_database(full_cfg)
     else:
         from pybackup.db.database import Database
+
         database = Database(db)
 
     run_id = database.create_run(job, engine)
     database.finish_run(run_id, status=status, output_path=output, error=error)
-    click.secho(
-        f"✔ Run #{run_id} added:  {job}  [{engine}]  →  {status}", fg="green"
-    )
+    click.secho(f"✔ Run #{run_id} added:  {job}  [{engine}]  →  {status}", fg="green")
 
 
 # ─── user group ─────────────────────────────────────────────────────
+
 
 @main.group()
 def user() -> None:
@@ -484,15 +528,23 @@ def user() -> None:
 
 @user.command(name="add")
 @click.option("--username", "-u", required=True, help="Username")
-@click.option("--password", "-p", default=None,
-              help="Password (prompted if omitted)")
-@click.option("--role", "-r", default="viewer", show_default=True,
-              type=click.Choice(["admin", "viewer"]), help="User role")
+@click.option("--password", "-p", default=None, help="Password (prompted if omitted)")
+@click.option(
+    "--role",
+    "-r",
+    default="viewer",
+    show_default=True,
+    type=click.Choice(["admin", "viewer"]),
+    help="User role",
+)
 @click.option("--email", "-e", default=None, help="Email address (optional)")
-@click.option("--db",    default=str(DEFAULT_DB_PATH), help="Database path")
+@click.option("--db", default=str(DEFAULT_DB_PATH), help="Database path")
 def user_add(
-    username: str, password: str | None,
-    role: str, email: str | None, db: str,
+    username: str,
+    password: str | None,
+    role: str,
+    email: str | None,
+    db: str,
 ) -> None:
     """Add a new dashboard user."""
     from pybackup.auth import UserDB
@@ -501,9 +553,7 @@ def user_add(
     configure_logging()
 
     if not password:
-        password = click.prompt(
-            "Password", hide_input=True, confirmation_prompt=True
-        )
+        password = click.prompt("Password", hide_input=True, confirmation_prompt=True)
 
     if len(password) < 8:
         click.secho("Error: Password must be at least 8 characters.", fg="red", err=True)
@@ -512,9 +562,7 @@ def user_add(
     try:
         udb = UserDB(db)
         uid = udb.create_user(username, password, role=role, email=email)
-        click.secho(
-            f"✔ User created: {username}  (id={uid}  role={role})", fg="green"
-        )
+        click.secho(f"✔ User created: {username}  (id={uid}  role={role})", fg="green")
     except SecurityError as exc:
         click.secho(f"Error: {exc}", fg="red", err=True)
         sys.exit(1)
@@ -527,7 +575,7 @@ def user_list(db: str) -> None:
     from pybackup.auth import UserDB
 
     configure_logging()
-    udb   = UserDB(db)
+    udb = UserDB(db)
     users = udb.list_users()
 
     if not users:
@@ -539,8 +587,7 @@ def user_list(db: str) -> None:
         return
 
     click.secho(
-        f"\n  {'ID':<5} {'Username':<20} {'Role':<10} "
-        f"{'Email':<26} {'Last Login'}",
+        f"\n  {'ID':<5} {'Username':<20} {'Role':<10} " f"{'Email':<26} {'Last Login'}",
         bold=True,
     )
     click.secho("  " + "─" * 72, fg="bright_black")
@@ -555,13 +602,13 @@ def user_list(db: str) -> None:
 
 @user.command(name="delete")
 @click.option("--username", "-u", required=True, help="Username to delete")
-@click.option("--db",       default=str(DEFAULT_DB_PATH), help="Database path")
+@click.option("--db", default=str(DEFAULT_DB_PATH), help="Database path")
 def user_delete(username: str, db: str) -> None:
     """Delete a dashboard user."""
     from pybackup.auth import UserDB
 
     configure_logging()
-    udb  = UserDB(db)
+    udb = UserDB(db)
     user = udb.get_by_username(username)
 
     if user is None:
@@ -569,9 +616,7 @@ def user_delete(username: str, db: str) -> None:
         sys.exit(1)
 
     if udb.count_admins() <= 1 and user["role"] == "admin":
-        click.secho(
-            "Cannot delete the last admin account.", fg="red", err=True
-        )
+        click.secho("Cannot delete the last admin account.", fg="red", err=True)
         sys.exit(1)
 
     if not click.confirm(f"Delete user '{username}'?"):
@@ -584,22 +629,20 @@ def user_delete(username: str, db: str) -> None:
 
 @user.command(name="set-password")
 @click.option("--username", "-u", required=True, help="Username")
-@click.option("--db",       default=str(DEFAULT_DB_PATH), help="Database path")
+@click.option("--db", default=str(DEFAULT_DB_PATH), help="Database path")
 def user_set_password(username: str, db: str) -> None:
     """Reset a user's password (admin operation — no current password needed)."""
     from pybackup.auth import UserDB
 
     configure_logging()
-    udb  = UserDB(db)
+    udb = UserDB(db)
     user = udb.get_by_username(username)
 
     if user is None:
         click.secho(f"User not found: {username}", fg="red", err=True)
         sys.exit(1)
 
-    new_pw = click.prompt(
-        "New password", hide_input=True, confirmation_prompt=True
-    )
+    new_pw = click.prompt("New password", hide_input=True, confirmation_prompt=True)
     if len(new_pw) < 8:
         click.secho("Password must be at least 8 characters.", fg="red", err=True)
         sys.exit(1)
@@ -609,6 +652,7 @@ def user_set_password(username: str, db: str) -> None:
 
 
 # ─── Helpers ────────────────────────────────────────────────────────
+
 
 def _print_jobs(cfg: dict) -> None:
     engines = ("files", "mongodb", "postgresql", "mysql", "mssql")
@@ -623,5 +667,5 @@ def _print_jobs(cfg: dict) -> None:
 
 # ─── Entry point ────────────────────────────────────────────────────
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

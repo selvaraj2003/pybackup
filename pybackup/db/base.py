@@ -31,25 +31,27 @@ class BaseBackend(ABC):
     # ── backup_runs ───────────────────────────────────────────────
 
     @abstractmethod
-    def create_run(self, job_name: str, engine: str,
-                   details: dict | None = None) -> int: ...
+    def create_run(self, job_name: str, engine: str, details: dict | None = None) -> int: ...
 
     @abstractmethod
-    def finish_run(self, run_id: int, *, status: str,
-                   output_path: str | None = None,
-                   error: str | None = None) -> None: ...
+    def finish_run(
+        self, run_id: int, *, status: str, output_path: str | None = None, error: str | None = None
+    ) -> None: ...
 
     @abstractmethod
     def get_run(self, run_id: int) -> dict[str, Any] | None: ...
 
     @abstractmethod
-    def list_runs(self, limit: int = 100, offset: int = 0,
-                  job_name: str | None = None,
-                  status: str | None = None) -> list[dict[str, Any]]: ...
+    def list_runs(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        job_name: str | None = None,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]: ...
 
     @abstractmethod
-    def count_runs(self, job_name: str | None = None,
-                   status: str | None = None) -> int: ...
+    def count_runs(self, job_name: str | None = None, status: str | None = None) -> int: ...
 
     @abstractmethod
     def delete_run(self, run_id: int) -> bool: ...
@@ -60,9 +62,9 @@ class BaseBackend(ABC):
     # ── backup_files ──────────────────────────────────────────────
 
     @abstractmethod
-    def add_file(self, run_id: int, file_path: str,
-                 file_size: int | None = None,
-                 checksum: str | None = None) -> int: ...
+    def add_file(
+        self, run_id: int, file_path: str, file_size: int | None = None, checksum: str | None = None
+    ) -> int: ...
 
     @abstractmethod
     def list_files(self, run_id: int) -> list[dict[str, Any]]: ...
@@ -81,8 +83,7 @@ class BaseBackend(ABC):
     def get_user(self, username: str) -> dict[str, Any] | None: ...
 
     @abstractmethod
-    def create_user(self, username: str, password_hash: str,
-                    role: str = "admin") -> int: ...
+    def create_user(self, username: str, password_hash: str, role: str = "admin") -> int: ...
 
     @abstractmethod
     def update_password(self, username: str, password_hash: str) -> None: ...

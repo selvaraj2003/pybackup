@@ -11,7 +11,7 @@ from typing import Any
 
 from pybackup.engine.base import BaseBackupEngine
 from pybackup.utils.exceptions import BackupError
-from pybackup.utils.security import get_secret, mask_secret
+from pybackup.utils.security import get_secret
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +30,15 @@ class MongoBackupEngine(BaseBackupEngine):
         self.host: str = job_config.get("host", "localhost")
         self.port: int = int(job_config.get("port", 27017))
         self.username: str | None = job_config.get("username")
-        self.password: str | None = get_secret(
-            job_config.get("password"), name="mongodb.password"
-        )
+        self.password: str | None = get_secret(job_config.get("password"), name="mongodb.password")
         self.auth_db: str = job_config.get("auth_db", "admin")
         self.database: str | None = job_config.get("database")  # None = all DBs
 
         logger.debug(
             "[%s] Mongo config: host=%s port=%d db=%s user=%s",
-            self.job_name, self.host, self.port,
+            self.job_name,
+            self.host,
+            self.port,
             self.database or "<all>",
             self.username or "<none>",
         )
@@ -48,16 +48,22 @@ class MongoBackupEngine(BaseBackupEngine):
 
         cmd = [
             "mongodump",
-            "--host", self.host,
-            "--port", str(self.port),
-            "--out", str(output_dir),
+            "--host",
+            self.host,
+            "--port",
+            str(self.port),
+            "--out",
+            str(output_dir),
         ]
 
         if self.username and self.password:
             cmd += [
-                "--username", self.username,
-                "--password", self.password,
-                "--authenticationDatabase", self.auth_db,
+                "--username",
+                self.username,
+                "--password",
+                self.password,
+                "--authenticationDatabase",
+                self.auth_db,
             ]
 
         if self.database:
@@ -65,7 +71,9 @@ class MongoBackupEngine(BaseBackupEngine):
 
         logger.info(
             "[%s] Starting mongodump → %s (db=%s)",
-            self.job_name, output_dir, self.database or "<all>",
+            self.job_name,
+            output_dir,
+            self.database or "<all>",
         )
 
         self._run_subprocess(cmd)

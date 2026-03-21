@@ -7,7 +7,7 @@ name        = "pybackup-engine"
 version     = "2.0.0"
 description = "Production-grade backup engine for files, PostgreSQL, MySQL, MongoDB and MSSQL — with a built-in web dashboard, login system and pluggable database backends."
 readme      = "README.md"
-license     = { text = "MIT" }
+license     = "MIT"
 requires-python = ">=3.10"
 authors     = [{ name = "Selvaraj Iyyappan" }]
 

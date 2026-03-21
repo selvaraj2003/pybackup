@@ -7,6 +7,7 @@ Auth flow:
   - /api/auth/*          → always served (public)
   - everything else      → served normally; JS checks session + redirects
 """
+
 from __future__ import annotations
 
 import json
@@ -30,6 +31,7 @@ _PUBLIC_API_PREFIXES = ("/api/auth/login", "/api/auth/setup-needed")
 
 
 # ── Router ────────────────────────────────────────────────────────────
+
 
 class Router:
     """Pattern-based HTTP router supporting :param named segments."""
@@ -64,9 +66,9 @@ class Router:
 
 # ── Request ───────────────────────────────────────────────────────────
 
+
 class Request:
-    def __init__(self, method: str, path: str, query: dict,
-                 headers: Any, body: bytes) -> None:
+    def __init__(self, method: str, path: str, query: dict, headers: Any, body: bytes) -> None:
         self.method = method
         self.path = path
         self.query = query
@@ -92,13 +94,18 @@ class Request:
 
 # ── Responses ─────────────────────────────────────────────────────────
 
+
 def json_response(data: Any, status: int = 200) -> tuple[int, dict, bytes]:
     body = json.dumps(data, default=str).encode("utf-8")
-    return status, {
-        "Content-Type": "application/json",
-        "Content-Length": str(len(body)),
-        "Cache-Control": "no-store",
-    }, body
+    return (
+        status,
+        {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+            "Cache-Control": "no-store",
+        },
+        body,
+    )
 
 
 def error_response(message: str, status: int = 400) -> tuple[int, dict, bytes]:
@@ -111,10 +118,11 @@ def redirect_response(location: str) -> tuple[int, dict, bytes]:
 
 # ── Request handler ───────────────────────────────────────────────────
 
+
 class PyBackupHandler(BaseHTTPRequestHandler):
-    router:   Router
-    db:       Any
-    user_db:  Any   # pybackup.auth.UserDB instance
+    router: Router
+    db: Any
+    user_db: Any  # pybackup.auth.UserDB instance
 
     def log_message(self, fmt: str, *args: Any) -> None:  # type: ignore[override]
         logger.debug("HTTP %s %s", self.address_string(), fmt % args)
@@ -138,10 +146,10 @@ class PyBackupHandler(BaseHTTPRequestHandler):
 
     def _dispatch(self, method: str) -> None:
         parsed = urlparse(self.path)
-        path   = parsed.path.rstrip("/") or "/"
-        query  = parse_qs(parsed.query)
-        clen   = int(self.headers.get("Content-Length", 0) or 0)
-        body   = self.rfile.read(clen) if clen else b""
+        path = parsed.path.rstrip("/") or "/"
+        query = parse_qs(parsed.query)
+        clen = int(self.headers.get("Content-Length", 0) or 0)
+        body = self.rfile.read(clen) if clen else b""
 
         req = Request(method, path, query, self.headers, body)
 
@@ -185,19 +193,31 @@ class PyBackupHandler(BaseHTTPRequestHandler):
 
         # No caching for HTML (so auth redirects work immediately)
         cache = "no-cache" if str(fp).endswith(".html") else "public, max-age=3600"
-        self._send(200, {
-            "Content-Type": mime or "application/octet-stream",
-            "Content-Length": str(len(data)),
-            "Cache-Control": cache,
-        }, data)
+        self._send(
+            200,
+            {
+                "Content-Type": mime or "application/octet-stream",
+                "Content-Length": str(len(data)),
+                "Cache-Control": cache,
+            },
+            data,
+        )
 
-    def do_GET(self)     -> None: self._dispatch("GET")
-    def do_POST(self)    -> None: self._dispatch("POST")
-    def do_DELETE(self)  -> None: self._dispatch("DELETE")
-    def do_OPTIONS(self) -> None: self._send(204, self._cors(), b"")
+    def do_GET(self) -> None:
+        self._dispatch("GET")
+
+    def do_POST(self) -> None:
+        self._dispatch("POST")
+
+    def do_DELETE(self) -> None:
+        self._dispatch("DELETE")
+
+    def do_OPTIONS(self) -> None:
+        self._send(204, self._cors(), b"")
 
 
 # ── Server ────────────────────────────────────────────────────────────
+
 
 class PyBackupServer:
     """
@@ -211,11 +231,12 @@ class PyBackupServer:
 
     def __init__(self, db: Any, user_db: Any, host: str = "0.0.0.0", port: int = 8200) -> None:
         from pybackup.server.handlers import register_routes
+
         router = Router()
         register_routes(router)
-        PyBackupHandler.router   = router
-        PyBackupHandler.db       = db
-        PyBackupHandler.user_db  = user_db
+        PyBackupHandler.router = router
+        PyBackupHandler.db = db
+        PyBackupHandler.user_db = user_db
         self._httpd = ThreadingHTTPServer((host, port), PyBackupHandler)
         self.host = host
         self.port = port
@@ -228,8 +249,9 @@ class PyBackupServer:
             threading.Thread(target=self._httpd.shutdown, daemon=True).start()
 
         import threading as _t
+
         if _t.current_thread() is _t.main_thread():
-            signal.signal(signal.SIGINT,  _shutdown)
+            signal.signal(signal.SIGINT, _shutdown)
             signal.signal(signal.SIGTERM, _shutdown)
 
         try:

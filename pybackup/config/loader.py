@@ -12,8 +12,8 @@ import yaml
 
 from pybackup.utils.exceptions import ConfigError
 
-
 # ─── Env var expansion ──────────────────────────────────────────────
+
 
 def _expand_env(value: Any) -> Any:
     """Recursively expand ``${VAR}`` / ``$VAR`` in string config values."""
@@ -27,6 +27,7 @@ def _expand_env(value: Any) -> Any:
 
 
 # ─── Public API ─────────────────────────────────────────────────────
+
 
 def load_config(config_path: str) -> dict[str, Any]:
     """

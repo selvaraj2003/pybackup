@@ -13,7 +13,6 @@ import logging
 import shutil
 import tarfile
 from pathlib import Path
-from typing import Any
 
 from pybackup.engine.base import BaseBackupEngine
 from pybackup.utils.exceptions import BackupError
@@ -44,7 +43,10 @@ class FilesBackupEngine(BaseBackupEngine):
 
         logger.info(
             "[%s] Backing up %s → %s (compress=%s)",
-            self.job_name, source, output_dir, self.compress,
+            self.job_name,
+            source,
+            output_dir,
+            self.compress,
         )
 
         try:
@@ -90,7 +92,9 @@ class FilesBackupEngine(BaseBackupEngine):
 
         logger.info(
             "[%s] Copy complete: %d files copied, %d excluded",
-            self.job_name, copied, skipped,
+            self.job_name,
+            copied,
+            skipped,
         )
         return destination
 
