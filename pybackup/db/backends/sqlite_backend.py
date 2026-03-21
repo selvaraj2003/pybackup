@@ -151,24 +151,28 @@ class SQLiteBackend(BaseBackend):
         p: list[Any] = []
         if job_name:
             q += " AND job_name=?"
-        p.append(job_name)
+            p.append(job_name)
         if status:
             q += " AND status=?"
-        p.append(status)
+            p.append(status)
         q += " ORDER BY started_at DESC LIMIT ? OFFSET ?"
         p += [limit, offset]
         with self._conn() as conn:
             return [dict(r) for r in conn.execute(q, p).fetchall()]
 
-    def count_runs(self, job_name: str | None = None, status: str | None = None) -> int:
+    def count_runs(
+        self,
+        job_name: str | None = None,
+        status: str | None = None,
+    ) -> int:
         q = "SELECT COUNT(*) FROM backup_runs WHERE 1=1"
         p: list[Any] = []
         if job_name:
             q += " AND job_name=?"
-        p.append(job_name)
+            p.append(job_name)
         if status:
             q += " AND status=?"
-        p.append(status)
+            p.append(status)
         with self._conn() as conn:
             return conn.execute(q, p).fetchone()[0]
 
